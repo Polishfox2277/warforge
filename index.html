@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Warforge Provinces — strategiczne MVP real-time</title>
   <meta name="description" content="Gra strategiczna real-time inspirowana grand strategy, działająca na GitHub Pages + Supabase." />
-  <link rel="stylesheet" href="./src/styles.css" />
+  <link rel="stylesheet" href="./src/styles.css?v=balance-v2" />
   <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml" />
 </head>
 <body>
@@ -13,9 +13,10 @@
   <div id="app" class="app-shell">
     <section id="hub" class="hub" aria-label="Menu główne">
       <div class="hub-card">
-        <p class="eyebrow">GitHub Pages + Supabase free</p>
+        <p class="eyebrow">GitHub Pages + Supabase free · BALANCE/MAPS v2</p>
         <h1>Warforge Provinces</h1>
         <p class="hub-lead">Strategia real-time: wybierz mapę, stwórz państwo, przejmuj prowincje, rozwijaj przemysł i graj solo, z botami albo z innymi graczami.</p>
+        <div class="version-banner">Wersja: rebalance + 3 mapy + edytor państwa 2.0</div>
         <div id="hubCountrySummary" class="hub-country-summary"></div>
         <div class="hub-actions">
           <button id="hubStartBtn" class="btn accent wide" type="button">Setup kampanii solo</button>
@@ -30,7 +31,7 @@
     <div id="gameScreen" hidden>
       <header class="topbar">
         <div>
-          <p class="eyebrow">Real-time strategy MVP</p>
+          <p class="eyebrow">Real-time strategy MVP · BALANCE/MAPS v2</p>
           <h1>Warforge Provinces</h1>
         </div>
         <nav class="topbar-actions" aria-label="Akcje gry">
@@ -239,6 +240,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="./src/app.js"></script>
+  <script type="module" src="./src/app.js?v=balance-v2"></script>
 </body>
 </html>

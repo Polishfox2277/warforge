@@ -273,3 +273,14 @@ h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: .03em; text-transform: u
 .setup-dialog .mini-country-card {
   margin-top: 2px;
 }
+
+.version-banner {
+  display: inline-block;
+  margin: 0 auto 16px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgb(242 184 75 / 55%);
+  background: rgb(242 184 75 / 12%);
+  color: #ffe2a4;
+  font-weight: 800;
+}
