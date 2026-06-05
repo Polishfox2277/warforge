@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Warforge Provinces — strategiczne MVP</title>
+  <meta name="description" content="Turowa gra strategiczna inspirowana grand strategy, działająca na GitHub Pages + Supabase." />
+  <link rel="stylesheet" href="./src/styles.css" />
+  <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml" />
+</head>
+<body>
+  <noscript>Ta gra wymaga włączonego JavaScriptu.</noscript>
+  <div id="app" class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">GitHub Pages + Supabase free</p>
+        <h1>Warforge Provinces</h1>
+      </div>
+      <nav class="topbar-actions" aria-label="Akcje gry">
+        <button id="newLocalBtn" class="btn primary">Nowa gra solo</button>
+        <button id="saveLocalBtn" class="btn">Zapisz lokalnie</button>
+        <button id="loadLocalBtn" class="btn">Wczytaj</button>
+        <button id="openMultiplayerBtn" class="btn accent">Multiplayer</button>
+      </nav>
+    </header>
+
+    <main class="game-layout">
+      <section class="map-card" aria-label="Mapa prowincji">
+        <div class="hud-strip">
+          <div id="turnInfo">Tura 1</div>
+          <div id="playerInfo">Gracz</div>
+          <div id="syncInfo" class="sync-info">Tryb lokalny</div>
+        </div>
+        <div id="mapRoot" class="map-root"></div>
+      </section>
+
+      <aside class="side-panel" aria-label="Panel dowodzenia">
+        <section class="panel-block">
+          <h2>Państwa</h2>
+          <div id="playersRoot" class="players-root"></div>
+        </section>
+
+        <section class="panel-block">
+          <h2>Prowincja</h2>
+          <div id="provinceRoot" class="province-root muted">Kliknij prowincję na mapie.</div>
+        </section>
+
+        <section class="panel-block">
+          <h2>Armia</h2>
+          <div id="unitRoot" class="unit-root muted">Kliknij jednostkę albo prowincję z jednostką.</div>
+        </section>
+
+        <section class="panel-block">
+          <h2>Rozkazy</h2>
+          <div id="ordersRoot" class="orders-root"></div>
+        </section>
+
+        <section class="panel-block log-block">
+          <h2>Dziennik</h2>
+          <ol id="logRoot" class="log-root"></ol>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <dialog id="multiplayerDialog" class="dialog">
+    <form method="dialog" class="dialog-inner">
+      <button value="cancel" class="dialog-close" aria-label="Zamknij">×</button>
+      <h2>Multiplayer przez Supabase</h2>
+      <p class="muted">Dane są zapisywane lokalnie w przeglądarce. Klucz Supabase anon/publishable jest publiczny, dlatego bezpieczeństwo zapewnia RLS w SQL.</p>
+      <label>URL projektu Supabase
+        <input id="supabaseUrlInput" type="url" placeholder="https://xxxxx.supabase.co" autocomplete="off" />
+      </label>
+      <label>Publiczny klucz anon/publishable
+        <input id="supabaseKeyInput" type="password" placeholder="sb_publishable_... lub eyJ..." autocomplete="off" />
+      </label>
+      <label>Nick
+        <input id="nicknameInput" type="text" placeholder="Dowódca" maxlength="28" />
+      </label>
+      <div class="dialog-grid">
+        <button id="connectSupabaseBtn" class="btn primary" type="button">Połącz</button>
+        <button id="createRoomBtn" class="btn accent" type="button">Utwórz pokój</button>
+      </div>
+      <label>Kod pokoju
+        <input id="roomCodeInput" type="text" placeholder="ABC123" maxlength="8" />
+      </label>
+      <button id="joinRoomBtn" class="btn primary wide" type="button">Dołącz do pokoju</button>
+      <p id="multiplayerStatus" class="status-line"></p>
+    </form>
+  </dialog>
+
+  <template id="buttonTemplate"><button class="btn small" type="button"></button></template>
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>
