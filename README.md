@@ -1,43 +1,74 @@
-# Warforge Provinces — map expanded update
+# Warforge Provinces — setup + readable map update
 
-Statyczna gra strategiczna inspirowana Call of War / Hearts of Iron, przygotowana pod GitHub Pages + Supabase Free.
+Statyczna gra strategiczna real-time pod GitHub Pages + Supabase Free.
 
 ## Co dodano w tej wersji
 
-- Rozbudowano mapę z 20 do **48 prowincji**.
-- Dodano większe pole gry `1180 × 760`.
-- Fronty są bardziej poszarpane dzięki ręcznym override'om właścicieli kilku prowincji.
-- Naprawiono problem „pusta prowincja jest niezajmowalna”:
-  - pusta, nieufortyfikowana prowincja wpada po wejściu jednostki,
-  - jednostka dostaje tylko małą stratę organizacyjną zależną od terenu,
-  - stolice i forty nadal bronią się nawet bez jednostek.
-- Zachowano kreator własnego kraju, flagi SVG, ideologie i losowe kraje botów.
+### 1. Dokładniejszy setup kampanii
 
-## Kierunek dalszej rozbudowy mapy
+Przycisk **Setup kampanii solo** otwiera teraz ekran ustawień przed startem:
 
-Aktualna mapa jest nadal generowana z siatki offsetowej, ale wygląda jak nieregularne prowincje. To dobry etap MVP.
+- tempo gry: wolne / normalne / szybkie,
+- trudność botów: łatwa / normalna / trudna,
+- zasoby startowe: niskie / normalne / wysokie,
+- nazwa dowódcy.
 
-Docelowy etap powinien wyglądać tak:
+Te ustawienia wpływają na realną rozgrywkę:
+- tempo zmienia częstotliwość gospodarki, AI i długość dnia,
+- trudność zmienia zasoby botów, dochód botów, siłę ataku botów i szybkość ich decyzji,
+- zasoby startowe zmieniają startowy budżet.
 
-```js
-{
-  id: "warszawa",
-  name: "Warszawa",
-  owner: "poland",
-  terrain: "city",
-  polygon: [[120, 90], [180, 80], [210, 130], [150, 170]],
-  neighbors: ["lodz", "bialystok", "lublin"],
-  resources: { money: 60, manpower: 45, steel: 20, oil: 4 },
-  buildings: { industry: 2, fort: 1, airbase: 1 }
-}
-```
+### 2. Czytelniejsza mapa
 
-Wtedy granice prowincji nie są już „udawane” przez generator, tylko wynikają z realnych polygonów.
+Każda prowincja ma teraz widoczne oznaczenie:
+
+- **PUSTA · 0** — łatwa do zajęcia, brak ukrytej obrony,
+- **ARMIA · X** — stoi tam jednostka / jednostki,
+- **FORT · X** — prowincja jest broniona fortyfikacją,
+- **STOLICA · X** — stolica ma garnizon nawet bez jednostek.
+
+Dodatkowo:
+- jednostki mają paski HP,
+- prowincje mają pasek kondycji pola,
+- zniszczenia prowincji są pokazane jako pęknięcia i procent zniszczeń,
+- zniszczenia obniżają dochód prowincji,
+- zniszczenia można naprawiać akcją **Napraw szkody**,
+- zniszczenia powoli spadają same przy tickach gospodarki, szybciej w prowincjach z przemysłem.
+
+### 3. Lepsza ergonomia
+
+Najważniejsza zmiana sterowania:
+
+**Kliknięcie prowincji już nie rusza przypadkowo jednostki.**
+
+Nowy schemat:
+
+1. Klikasz prowincję — tylko ją wybierasz.
+2. Klikasz jednostkę — tylko ją wybierasz.
+3. Klikasz **Wydaj rozkaz**.
+4. Dopiero teraz kliknięcie sąsiedniej prowincji wykonuje marsz albo atak.
+
+To rozwiązuje problem przypadkowego ruchu armii przy przeglądaniu mapy.
+
+### 4. Szybkie akcje nad mapą
+
+Nie trzeba ciągle scrollować do bocznego panelu.
+
+Po wyborze własnej prowincji nad mapą pojawiają się:
+- budowa przemysłu,
+- budowa fortu,
+- budowa lotniska,
+- naprawa szkód,
+- rekrutacja piechoty,
+- rekrutacja artylerii,
+- rekrutacja czołgów.
+
+Boczny panel nadal istnieje jako panel szczegółów.
 
 ## Uruchomienie lokalne
 
 ```bash
-cd warforge-mvp-map-expanded
+cd warforge-mvp-setup-ui
 python3 -m http.server 5173
 ```
 
@@ -49,13 +80,19 @@ http://localhost:5173
 
 ## Supabase
 
-Dla samej większej mapy SQL nie musi się zmieniać względem wersji custom-country, ale najbezpieczniej uruchomić aktualny plik:
+Jeżeli masz już wgrany SQL z wersji `custom-country` albo `map-expanded`, SQL nie wymaga zmiany dla tej aktualizacji.
+
+Dla pewności możesz ponownie uruchomić:
 
 ```text
 supabase/schema.sql
 ```
 
-Jeżeli wcześniej uruchomiłeś wersję custom-country, ta wersja ma kompatybilną strukturę RPC.
+Nadal wymagane jest:
+
+```text
+Authentication → Anonymous sign-ins → Enable
+```
 
 ## GitHub Pages
 
@@ -63,3 +100,7 @@ Jeżeli wcześniej uruchomiłeś wersję custom-country, ta wersja ma kompatybil
 2. GitHub → Settings → Pages.
 3. Deploy from a branch.
 4. Branch `main`, folder `/root`.
+
+## Notatka projektowa
+
+Mapa jest nadal MVP, ale ma już czytelny system informacji strategicznej. Kolejny dobry krok to wydzielenie mapy do `mapData.js` i później zrobienie edytora mapy.

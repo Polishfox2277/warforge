@@ -18,7 +18,7 @@
         <p class="hub-lead">Strategia real-time: przejmuj prowincje, rozwijaj przemysł, dowódź armią i graj solo, z botami albo z innymi graczami.</p>
         <div id="hubCountrySummary" class="hub-country-summary"></div>
         <div class="hub-actions">
-          <button id="hubStartBtn" class="btn accent wide" type="button">Zacznij grę solo</button>
+          <button id="hubStartBtn" class="btn accent wide" type="button">Setup kampanii solo</button>
           <button id="hubMultiplayerBtn" class="btn primary wide" type="button">Multiplayer</button>
           <button id="hubCountryBtn" class="btn wide" type="button">Stwórz własny kraj</button>
           <button id="hubLoadBtn" class="btn wide" type="button">Wczytaj zapis lokalny</button>
@@ -36,7 +36,7 @@
         <nav class="topbar-actions" aria-label="Akcje gry">
           <button id="hubBtn" class="btn">Menu</button>
           <button id="countryBtn" class="btn">Mój kraj</button>
-          <button id="newLocalBtn" class="btn primary">Nowa gra solo</button>
+          <button id="newLocalBtn" class="btn primary">Nowa kampania</button>
           <button id="saveLocalBtn" class="btn">Zapisz lokalnie</button>
           <button id="loadLocalBtn" class="btn">Wczytaj</button>
           <button id="openMultiplayerBtn" class="btn accent">Multiplayer</button>
@@ -49,6 +49,15 @@
             <div id="turnInfo">Dzień 1</div>
             <div id="playerInfo">Gracz</div>
             <div id="syncInfo" class="sync-info">Tryb lokalny</div>
+          </div>
+          <div class="map-command-bar">
+            <div id="quickActionsRoot" class="quick-actions-root"></div>
+            <div class="map-legend">
+              <span><i class="legend-dot free"></i> puste</span>
+              <span><i class="legend-dot defended"></i> bronione</span>
+              <span><i class="legend-dot fortified"></i> fort/stolica</span>
+              <span><i class="legend-dot damaged"></i> zniszczenia</span>
+            </div>
           </div>
           <div id="mapRoot" class="map-root"></div>
         </section>
@@ -82,6 +91,44 @@
       </main>
     </div>
   </div>
+
+
+  <dialog id="setupDialog" class="dialog">
+    <form method="dialog" class="dialog-inner setup-dialog">
+      <button value="cancel" class="dialog-close" aria-label="Zamknij">×</button>
+      <h2>Setup kampanii</h2>
+      <p class="muted">Tutaj ustawiasz tempo i trudność przed startem. Własny kraj nadal bierze się z kreatora kraju zapisanego w localStorage.</p>
+      <div class="setup-grid">
+        <label>Tempo gry
+          <select id="setupPaceInput">
+            <option value="slow">Wolne — więcej czasu na decyzje</option>
+            <option value="normal" selected>Normalne</option>
+            <option value="fast">Szybkie — więcej akcji</option>
+          </select>
+        </label>
+        <label>Trudność botów
+          <select id="setupDifficultyInput">
+            <option value="easy">Łatwa</option>
+            <option value="normal" selected>Normalna</option>
+            <option value="hard">Trudna</option>
+          </select>
+        </label>
+        <label>Zasoby startowe
+          <select id="setupResourcesInput">
+            <option value="low">Niskie</option>
+            <option value="normal" selected>Normalne</option>
+            <option value="high">Wysokie</option>
+          </select>
+        </label>
+        <label>Nazwa dowódcy
+          <input id="setupCommanderInput" type="text" maxlength="28" placeholder="Dowódca" />
+        </label>
+      </div>
+      <div id="setupCountrySummary" class="mini-country-card"></div>
+      <button id="setupStartSoloBtn" class="btn accent wide" type="button">Rozpocznij kampanię solo</button>
+      <p class="muted">Sterowanie: klik prowincji tylko wybiera prowincję. Ruch lub atak jednostką wymaga przycisku <strong>Wydaj rozkaz</strong>.</p>
+    </form>
+  </dialog>
 
   <dialog id="multiplayerDialog" class="dialog">
     <form method="dialog" class="dialog-inner">
@@ -170,9 +217,10 @@
       <h2>Jak grać</h2>
       <p class="muted">Nie ma tur. Zasoby wpadają co kilka sekund, jednostki mają cooldown po marszu lub ataku, a boty wykonują rozkazy automatycznie.</p>
       <p>1. Najpierw wejdź do opcji <strong>Stwórz własny kraj</strong> i ustaw nazwę, flagę, ideologię oraz kolor mapy.</p>
-      <p>2. Kliknij własną prowincję, żeby budować przemysł, forty, lotniska albo rekrutować jednostki.</p>
-      <p>3. Kliknij własną jednostkę, a potem sąsiednią prowincję, żeby wykonać marsz albo atak.</p>
-      <p>4. W multiplayerze host tworzy pokój, a kolejni gracze wpisują kod pokoju. Każdy otrzymuje własne wolne państwo i jego slot zostaje podmieniony na lokalnie zapisany kraj.</p>
+      <p>2. Kliknij własną prowincję, żeby zobaczyć szybkie akcje nad mapą: budowę i rekrutację.</p>
+      <p>3. Kliknij jednostkę, potem kliknij <strong>Wydaj rozkaz</strong>, a dopiero wtedy wybierz sąsiednią prowincję. Dzięki temu przypadkowo nie ruszysz armii przy zwykłym oglądaniu mapy.</p>
+      <p>4. Oznaczenia mapy: <strong>PUSTA</strong> oznacza łatwe zajęcie, <strong>ARMIA/FORT/STOLICA</strong> oznacza obronę, a czerwony pasek i pęknięcia pokazują zniszczenia prowincji.</p>
+      <p>5. W multiplayerze host tworzy pokój, a kolejni gracze wpisują kod pokoju. Każdy otrzymuje własne wolne państwo i jego slot zostaje podmieniony na lokalnie zapisany kraj.</p>
     </form>
   </dialog>
 

@@ -19,8 +19,11 @@ import {
   migrateState,
   moveOrAttack,
   ownUnitsAt,
+  provinceBattleStatus,
+  provinceDefenseStrength,
   readyInSeconds,
   recruitUnit,
+  repairProvince,
   resourceIcon,
   selectableTargets,
   terrainLabel,
@@ -44,6 +47,7 @@ const ui = {
   multiplayerCountrySummary: document.querySelector('#multiplayerCountrySummary'),
   gameScreen: document.querySelector('#gameScreen'),
   mapRoot: document.querySelector('#mapRoot'),
+  quickActionsRoot: document.querySelector('#quickActionsRoot'),
   playersRoot: document.querySelector('#playersRoot'),
   provinceRoot: document.querySelector('#provinceRoot'),
   unitRoot: document.querySelector('#unitRoot'),
@@ -58,6 +62,12 @@ const ui = {
   supabaseKeyInput: document.querySelector('#supabaseKeyInput'),
   nicknameInput: document.querySelector('#nicknameInput'),
   roomCodeInput: document.querySelector('#roomCodeInput'),
+  setupDialog: document.querySelector('#setupDialog'),
+  setupPaceInput: document.querySelector('#setupPaceInput'),
+  setupDifficultyInput: document.querySelector('#setupDifficultyInput'),
+  setupResourcesInput: document.querySelector('#setupResourcesInput'),
+  setupCommanderInput: document.querySelector('#setupCommanderInput'),
+  setupCountrySummary: document.querySelector('#setupCountrySummary'),
   countryDialog: document.querySelector('#countryDialog'),
   countryStatus: document.querySelector('#countryStatus'),
   countryPreview: document.querySelector('#countryPreview'),
@@ -75,6 +85,7 @@ const app = {
   customCountry: loadCountryProfile(),
   selectedProvinceId: null,
   selectedUnitId: null,
+  orderMode: false,
   mode: 'local',
   view: 'hub',
   localHumanId: 'eagle',
@@ -95,12 +106,13 @@ function boot() {
   ui.supabaseUrlInput.value = cfg.url || '';
   ui.supabaseKeyInput.value = cfg.key || '';
   ui.nicknameInput.value = localStorage.getItem('warforge_nickname') || 'Dowódca';
+  ui.setupCommanderInput.value = ui.nicknameInput.value;
 
   populateIdeologies();
   fillCountryEditor(app.customCountry);
   renderCountryCards();
 
-  document.querySelector('#hubStartBtn').addEventListener('click', startSoloGame);
+  document.querySelector('#hubStartBtn').addEventListener('click', openSetupDialog);
   document.querySelector('#hubLoadBtn').addEventListener('click', () => loadLocal({ fromHub: true }));
   document.querySelector('#hubMultiplayerBtn').addEventListener('click', () => ui.multiplayerDialog.showModal());
   document.querySelector('#hubCountryBtn').addEventListener('click', () => ui.countryDialog.showModal());
@@ -108,13 +120,14 @@ function boot() {
 
   document.querySelector('#hubBtn').addEventListener('click', showHub);
   document.querySelector('#countryBtn').addEventListener('click', () => ui.countryDialog.showModal());
-  document.querySelector('#newLocalBtn').addEventListener('click', startSoloGame);
+  document.querySelector('#newLocalBtn').addEventListener('click', openSetupDialog);
   document.querySelector('#saveLocalBtn').addEventListener('click', () => saveLocal(false));
   document.querySelector('#loadLocalBtn').addEventListener('click', () => loadLocal({ fromHub: false }));
   document.querySelector('#openMultiplayerBtn').addEventListener('click', () => ui.multiplayerDialog.showModal());
   document.querySelector('#connectSupabaseBtn').addEventListener('click', connectFromDialog);
   document.querySelector('#createRoomBtn').addEventListener('click', createRoomFromDialog);
   document.querySelector('#joinRoomBtn').addEventListener('click', joinRoomFromDialog);
+  document.querySelector('#setupStartSoloBtn').addEventListener('click', startSoloGameFromSetup);
   document.querySelector('#saveCountryBtn').addEventListener('click', saveCountryFromDialog);
   document.querySelector('#randomCountryBtn').addEventListener('click', randomizeCountry);
   document.querySelector('#resetCountryBtn').addEventListener('click', () => {
@@ -143,9 +156,31 @@ function populateIdeologies() {
     .join('');
 }
 
-function startSoloGame() {
+
+function openSetupDialog() {
+  ui.setupCommanderInput.value = ui.nicknameInput.value || localStorage.getItem('warforge_nickname') || 'Dowódca';
+  ui.setupCountrySummary.innerHTML = countryMiniCardHtml(app.customCountry);
+  ui.setupDialog.showModal();
+}
+
+function setupConfigFromDialog() {
+  return {
+    pace: ui.setupPaceInput.value,
+    difficulty: ui.setupDifficultyInput.value,
+    startResources: ui.setupResourcesInput.value
+  };
+}
+
+function startSoloGameFromSetup() {
+  ui.nicknameInput.value = ui.setupCommanderInput.value || ui.nicknameInput.value || 'Dowódca';
+  localStorage.setItem('warforge_nickname', ui.nicknameInput.value);
+  ui.setupDialog.close();
+  startSoloGame(setupConfigFromDialog());
+}
+
+function startSoloGame(setup = setupConfigFromDialog()) {
   disconnectMultiplayer();
-  setState(createInitialState({ humanName: ui.nicknameInput.value || 'Gracz', mode: 'local', customCountry: app.customCountry }), 'local');
+  setState(createInitialState({ humanName: ui.nicknameInput.value || 'Gracz', mode: 'local', customCountry: app.customCountry, setup }), 'local');
   app.localHumanId = 'eagle';
   showGame();
   toast('Nowa kampania real-time rozpoczęta. Twój kraj został użyty jako państwo gracza.');
@@ -156,6 +191,7 @@ function setState(nextState, mode = app.mode) {
   app.mode = mode;
   app.selectedProvinceId = null;
   app.selectedUnitId = null;
+  app.orderMode = false;
   render();
 }
 
@@ -189,6 +225,7 @@ function render() {
     ? `Online${app.state.roomCode ? ` · kod ${app.state.roomCode}` : ''}${isHostAuthority() ? ' · host symuluje świat' : ''}`
     : 'Singleplayer real-time';
   renderMap();
+  renderQuickActions();
   renderPlayers();
   renderProvince();
   renderUnit();
@@ -201,10 +238,12 @@ function renderCountryCards() {
   const summary = countryCardHtml(profile, 'Twój kraj', true);
   ui.hubCountrySummary.innerHTML = summary;
   ui.multiplayerCountrySummary.innerHTML = countryMiniCardHtml(profile);
+  if (ui.setupCountrySummary) ui.setupCountrySummary.innerHTML = countryMiniCardHtml(profile);
 }
 
 function renderMap() {
-  const targets = new Set(app.selectedUnitId ? selectableTargets(app.state, app.selectedUnitId) : []);
+  const controlled = controlledPlayer();
+  const targets = new Set(app.orderMode && app.selectedUnitId ? selectableTargets(app.state, app.selectedUnitId) : []);
   const mapMeta = app.state.mapMeta ?? { width: 1000, height: 610 };
   const lines = [];
   for (const province of app.state.provinces) {
@@ -219,14 +258,34 @@ function renderMap() {
     const owner = getPlayer(app.state, province.owner);
     const points = provincePolygonPoints(province).map(p => p.join(',')).join(' ');
     const unitCount = unitsAt(app.state, province.id).length;
+    const status = provinceBattleStatus(app.state, province.id, controlled?.id);
+    const damageOpacity = Math.min(0.62, (status.devastation ?? 0) / 130);
     const classNames = [
       'province',
+      `status-${status.kind}`,
       app.selectedProvinceId === province.id ? 'selected' : '',
       targets.has(province.id) ? 'target' : ''
     ].join(' ');
+    const hpBarWidth = Math.max(0, Math.min(52, status.hp * 0.52));
+    const damageLines = status.devastation > 12
+      ? `<g class="province-cracks" opacity="${damageOpacity}">
+          <path d="M ${province.x - 35} ${province.y - 28} l 16 12 l -8 10 l 20 16" />
+          <path d="M ${province.x + 26} ${province.y - 30} l -12 15 l 10 7 l -18 18" />
+        </g>`
+      : '';
     return `<g class="${classNames}" data-province-id="${province.id}">
       <polygon points="${points}" fill="${owner?.color ?? '#687089'}" opacity="0.86"></polygon>
-      <text class="province-name" x="${province.x}" y="${province.y - 13}">${escapeHtml(province.name)}</text>
+      ${damageLines}
+      <g class="province-badge" transform="translate(${province.x - 42} ${province.y - 44})">
+        <rect width="84" height="18" rx="8"></rect>
+        <text x="42" y="13">${escapeHtml(status.label)} · ${status.strength}</text>
+      </g>
+      <g class="province-hp" transform="translate(${province.x - 26} ${province.y + 24})">
+        <rect class="hp-bg" width="52" height="6" rx="3"></rect>
+        <rect class="hp-fill" width="${hpBarWidth}" height="6" rx="3"></rect>
+      </g>
+      ${status.devastation > 0 ? `<text class="province-damage" x="${province.x + 47}" y="${province.y + 35}">-${status.devastation}%</text>` : ''}
+      <text class="province-name" x="${province.x}" y="${province.y - 15}">${escapeHtml(province.name)}</text>
       <text class="province-meta" x="${province.x}" y="${province.y + 12}">${province.capital ? '★ ' : ''}${terrainLabel(province.terrain)} · 🏭${province.buildings.industry} 🛡${province.buildings.fort}${unitCount ? ` · ⚔${unitCount}` : ''}</text>
     </g>`;
   }).join('');
@@ -242,9 +301,12 @@ function renderMap() {
     const y = province.y + 42 + Math.sin(angle) * 12;
     const selected = app.selectedUnitId === unit.id ? 'selected' : '';
     const ready = isUnitReady(app.state, unit);
+    const hpWidth = Math.max(0, Math.min(34, unit.hp * 0.34));
     return `<g class="unit-chip ${selected} ${ready ? 'ready' : 'cooldown'}" data-unit-id="${unit.id}" transform="translate(${x} ${y})">
       <circle r="19" fill="${owner?.color ?? '#ddd'}"></circle>
       <text y="1">${UNIT_TYPES[unit.type].short}</text>
+      <rect class="unit-hp-bg" x="-17" y="22" width="34" height="5" rx="2.5"></rect>
+      <rect class="unit-hp-fill" x="-17" y="22" width="${hpWidth}" height="5" rx="2.5"></rect>
       <title>${UNIT_TYPES[unit.type].label} · ${Math.max(0, Math.round(unit.hp))}%${ready ? ' · gotowa' : ` · ${readyInSeconds(app.state, unit)} s`}</title>
     </g>`;
   }).join('');
@@ -266,6 +328,62 @@ function renderMap() {
     onUnitClick(el.dataset.unitId);
   }));
 }
+
+
+function renderQuickActions() {
+  const player = controlledPlayer();
+  const province = app.selectedProvinceId ? getProvince(app.state, app.selectedProvinceId) : null;
+  const unit = app.selectedUnitId ? app.state.units.find(u => u.id === app.selectedUnitId) : null;
+  const parts = [];
+
+  if (province) {
+    const owner = getPlayer(app.state, province.owner);
+    const status = provinceBattleStatus(app.state, province.id, player?.id);
+    parts.push(`<div class="quick-summary"><strong>${escapeHtml(province.name)}</strong><span>${escapeHtml(owner?.name ?? province.owner)}</span><span class="pill">${escapeHtml(status.label)} · siła ${status.strength}</span></div>`);
+  } else {
+    parts.push('<div class="quick-summary muted">Kliknij prowincję, aby zobaczyć szybkie akcje. Kliknięcie prowincji nie rusza już jednostki.</div>');
+  }
+
+  ui.quickActionsRoot.innerHTML = parts.join('');
+  const actions = document.createElement('div');
+  actions.className = 'quick-actions';
+
+  if (player && province && province.owner === player.id) {
+    for (const [key, building] of Object.entries(BUILDINGS)) {
+      const cost = buildingCostForPlayer(player, key);
+      actions.appendChild(actionButton(`Buduj ${building.label}`, () => perform(() => buildBuilding(app.state, province.id, key, player.id)), userCanAct()));
+    }
+    if ((province.devastation ?? 0) > 0) {
+      actions.appendChild(actionButton(`Napraw szkody ${province.devastation}%`, () => perform(() => repairProvince(app.state, province.id, player.id)), userCanAct()));
+    }
+    for (const [key, unitDef] of Object.entries(UNIT_TYPES)) {
+      const cost = unitCostForPlayer(player, key);
+      const btn = actionButton(`+ ${unitDef.label}`, () => perform(() => recruitUnit(app.state, province.id, key, player.id)), userCanAct());
+      btn.title = formatCost(cost);
+      actions.appendChild(btn);
+    }
+  }
+
+  if (player && unit && unit.owner === player.id) {
+    const btn = actionButton(app.orderMode ? 'Anuluj rozkaz' : 'Wydaj rozkaz', () => {
+      app.orderMode = !app.orderMode;
+      render();
+      if (app.orderMode) toast('Tryb rozkazu: kliknij sąsiednią prowincję, żeby wykonać marsz albo atak.');
+    }, userCanAct() && isUnitReady(app.state, unit));
+    btn.classList.add(app.orderMode ? 'danger' : 'accent-lite');
+    actions.appendChild(btn);
+  }
+
+  if (!actions.children.length) {
+    const hint = document.createElement('span');
+    hint.className = 'muted quick-hint';
+    hint.textContent = 'Szybkie akcje pojawią się po wybraniu własnej prowincji lub jednostki.';
+    actions.appendChild(hint);
+  }
+
+  ui.quickActionsRoot.appendChild(actions);
+}
+
 
 function renderPlayers() {
   const controlled = controlledPlayer();
@@ -300,10 +418,13 @@ function renderProvince() {
   ui.provinceRoot.className = 'province-root detail-grid';
   const owner = getPlayer(app.state, province.owner);
   const income = formatCost(scaleIncome(incomeSingleProvince(province, owner)));
+  const status = provinceBattleStatus(app.state, province.id, controlledPlayer()?.id);
   ui.provinceRoot.innerHTML = `
     <div class="detail-row"><strong>${escapeHtml(province.name)}</strong><span>${province.capital ? 'Stolica' : terrainLabel(province.terrain)}</span></div>
     <div class="detail-row"><span>Właściciel</span><span>${flagIconHtml(owner?.flag)} ${escapeHtml(owner?.name ?? province.owner)}</span></div>
     <div class="detail-row"><span>Doktryna</span><span>${escapeHtml(IDEOLOGIES[owner?.ideology]?.label ?? '—')}</span></div>
+    <div class="detail-row"><span>Obrona pola</span><span>${escapeHtml(status.label)} · siła ${status.strength}</span></div>
+    <div class="detail-row"><span>Zniszczenia</span><span>${status.devastation}%</span></div>
     <div class="detail-row"><span>Dochód/tick</span><span>${income}</span></div>
     <div class="detail-row"><span>Budynki</span><span>🏭 ${province.buildings.industry} · 🛡 ${province.buildings.fort} · 🛫 ${province.buildings.airbase}</span></div>
     <div class="detail-row"><span>Jednostki</span><span>${unitsAt(app.state, province.id).length}</span></div>`;
@@ -351,6 +472,9 @@ function renderOrders() {
       const cost = buildingCostForPlayer(player, key);
       buttons.push(actionButton(`${building.label} (${formatCost(cost)})`, () => perform(() => buildBuilding(app.state, province.id, key, player.id)), canAct));
     }
+    if ((province.devastation ?? 0) > 0) {
+      buttons.push(actionButton(`Napraw szkody ${province.devastation}%`, () => perform(() => repairProvince(app.state, province.id, player.id)), canAct));
+    }
     for (const [key, unitDef] of Object.entries(UNIT_TYPES)) {
       const cost = unitCostForPlayer(player, key);
       buttons.push(actionButton(`Rekrutuj ${unitDef.label} (${formatCost(cost)})`, () => perform(() => recruitUnit(app.state, province.id, key, player.id)), canAct));
@@ -358,7 +482,12 @@ function renderOrders() {
   }
 
   if (player && unit && unit.owner === player.id) {
-    for (const targetId of selectableTargets(app.state, unit.id)) {
+    buttons.push(actionButton(app.orderMode ? 'Anuluj tryb rozkazu' : 'Wydaj rozkaz wybraną jednostką', () => {
+      app.orderMode = !app.orderMode;
+      render();
+      if (app.orderMode) toast('Tryb rozkazu aktywny: kliknij sąsiednią prowincję na mapie.');
+    }, canAct && isUnitReady(app.state, unit)));
+    for (const targetId of (app.orderMode ? selectableTargets(app.state, unit.id) : [])) {
       const target = getProvince(app.state, targetId);
       const verb = target.owner === unit.owner ? 'Marsz' : 'Atak';
       buttons.push(actionButton(`${verb}: ${target.name}`, () => perform(() => moveOrAttack(app.state, unit.id, target.id, player.id)), canAct && isUnitReady(app.state, unit)));
@@ -383,12 +512,15 @@ function renderLog() {
 
 function onProvinceClick(provinceId) {
   const player = controlledPlayer();
-  if (app.selectedUnitId && player) {
+  if (app.orderMode && app.selectedUnitId && player) {
     const targets = selectableTargets(app.state, app.selectedUnitId);
     if (targets.includes(provinceId) && userCanAct()) {
       perform(() => moveOrAttack(app.state, app.selectedUnitId, provinceId, player.id));
+      app.orderMode = false;
       return;
     }
+    toast('To nie jest sąsiednia prowincja dla wybranej jednostki. Rozkaz anulowany.');
+    app.orderMode = false;
   }
   app.selectedProvinceId = provinceId;
   if (player) {
@@ -404,6 +536,7 @@ function onUnitClick(unitId) {
   const unit = app.state.units.find(u => u.id === unitId);
   app.selectedUnitId = unitId;
   app.selectedProvinceId = unit?.location ?? app.selectedProvinceId;
+  app.orderMode = false;
   render();
 }
 
@@ -572,7 +705,7 @@ async function createRoomFromDialog() {
   try {
     const config = getDialogConfig();
     await connect(config);
-    const initialState = createInitialState({ mode: 'multiplayer', humanName: config.nickname, customCountry: app.customCountry });
+    const initialState = createInitialState({ mode: 'multiplayer', humanName: config.nickname, customCountry: app.customCountry, setup: setupConfigFromDialog() });
     const { game, user } = await createRoom({ name: 'Warforge room', nickname: config.nickname, initialState });
     app.supabaseUser = user;
     app.supabaseGameId = game.id;
