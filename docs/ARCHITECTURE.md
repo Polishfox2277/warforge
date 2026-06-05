@@ -1,38 +1,39 @@
 # Architektura
 
-## Cel
-
-Gra ma działać za darmo na GitHub Pages + Supabase. GitHub Pages serwuje tylko statyczne pliki, więc aplikacja nie zakłada serwera Node. Supabase pełni rolę bazy, autoryzacji i kanału synchronizacji.
-
 ## Frontend
 
-- `index.html` ładuje moduł ES `src/app.js`.
-- `src/engine.js` jest czystą logiką gry: nie zna DOM ani Supabase.
-- `src/supabaseClient.js` izoluje warstwę sieciową.
-- Mapa SVG jest renderowana dynamicznie z danych prowincji.
+Aplikacja jest statyczna: `index.html`, `src/styles.css`, `src/app.js`, `src/engine.js` i `src/supabaseClient.js`.
 
-## Stan gry
+- `engine.js` zawiera reguły gry: mapa, zasoby, jednostki, walka, boty, real-time tick.
+- `app.js` zawiera UI, hub, pętlę gry i synchronizację.
+- `supabaseClient.js` zawiera połączenie z Supabase, tworzenie pokoju, dołączanie do pokoju i Realtime.
 
-Cały stan rozgrywki jest przechowywany jako JSON:
+## Real-time
 
-- tura,
-- aktualny gracz,
-- prowincje,
-- jednostki,
-- gracze,
-- log zdarzeń.
+Gra nie używa tur. Stan ma pola:
 
-W singleplayerze JSON trafia do `localStorage`. W multiplayerze JSON trafia do `public.games.state` w Supabase.
+- `gameTimeMs`
+- `day`
+- `realtime.lastWallAt`
+- `realtime.lastEconomyAt`
+- `realtime.lastAiAt`
 
-## Supabase
+W singleplayerze lokalna przeglądarka rozwija świat co sekundę. W multiplayerze robi to host pokoju.
 
-- `games` przechowuje kod pokoju, hosta, JSON stanu i wersję optymistyczną.
-- `game_members` przechowuje członkostwo użytkowników w pokojach.
-- `submit_game_state` sprawdza członkostwo i wersję, potem zapisuje nowy stan.
-- Realtime wysyła aktualizacje wiersza `games` do podłączonych klientów.
+## Multiplayer
 
-## Model bezpieczeństwa
+Tabela `games` przechowuje cały stan gry jako JSONB. Tabela `game_members` przechowuje uczestników i ich państwa.
 
-RLS chroni odczyt i dołączanie do pokoi. Publiczny klucz Supabase może być w przeglądarce, ale nigdy nie wolno umieszczać tam `service_role`.
+Dołączanie używa funkcji SQL:
 
-MVP nie jest odporne na cheaty, bo klient wysyła gotowy stan. Wersja produkcyjna powinna wysyłać rozkazy, a walidacja i symulacja powinny odbywać się po stronie zaufanej.
+```sql
+public.join_game_room(p_code text, p_nickname text)
+```
+
+Funkcja blokuje wiersz gry przez `FOR UPDATE`, znajduje pierwszego gracza z `type = 'open'`, zmienia go na `human` i przypisuje `controller = auth.uid()`. To naprawia problem braku przypisanego kraju u graczy dołączających.
+
+## Bezpieczeństwo
+
+Frontend używa wyłącznie publicznego klucza publishable/anon. Nie wolno umieszczać w kodzie klucza `service_role`.
+
+RLS i RPC ograniczają dostęp do pokoi oraz sprawdzają, czy zapis stanu wykonuje członek gry. MVP nadal nie jest odporne na cheaty po stronie klienta.

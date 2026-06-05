@@ -92,3 +92,12 @@ h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: .03em; text-transform: u
   .map-root { min-height: 480px; padding: 6px; }
   .dialog-grid { grid-template-columns: 1fr; }
 }
+
+.hub { min-height: calc(100vh - 44px); display: grid; place-items: center; }
+.hub-card { width: min(760px, 100%); padding: clamp(24px, 5vw, 54px); border-radius: 30px; background: linear-gradient(180deg, rgb(31 38 66 / 96%), rgb(17 20 35 / 98%)); border: 1px solid rgb(99 116 169 / 40%); box-shadow: var(--shadow); text-align: center; }
+.hub-card h1 { font-size: clamp(2.4rem, 7vw, 5rem); }
+.hub-lead { color: #dce4ff; max-width: 620px; margin: 18px auto 28px; font-size: 1.1rem; line-height: 1.6; }
+.hub-actions { display: grid; gap: 10px; max-width: 380px; margin: 0 auto; }
+.unit-chip.cooldown circle { opacity: .55; }
+.unit-chip.ready circle { opacity: 1; }
+#gameScreen[hidden], #hub[hidden] { display: none !important; }

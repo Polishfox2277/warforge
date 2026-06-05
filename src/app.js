@@ -2,22 +2,22 @@ import {
   BUILDINGS,
   FACTIONS,
   UNIT_TYPES,
-  assignOpenFaction,
+  advanceRealtime,
   buildBuilding,
   createInitialState,
-  currentPlayer,
-  endTurn,
+  fillOpenSlotsWithBots,
   formatCost,
+  getControlledPlayer,
   getPlayer,
   getProvince,
   incomeForPlayer,
-  isHumanLocalTurn,
-  isUsersTurn,
+  isUnitReady,
+  migrateState,
   moveOrAttack,
   ownUnitsAt,
+  readyInSeconds,
   recruitUnit,
   resourceIcon,
-  runAiTurn,
   selectableTargets,
   terrainLabel,
   unitsAt,
@@ -25,8 +25,16 @@ import {
 } from './engine.js';
 import { connect, createRoom, joinRoom, loadConfig, saveConfig, submitState, subscribeGame } from './supabaseClient.js';
 
-const LOCAL_KEY = 'warforge_local_state';
+const LOCAL_KEY = 'warforge_local_state_v2';
+const DEFAULT_SUPABASE = {
+  url: 'https://mcldlpljgcitixwbnjfb.supabase.co',
+  key: 'sb_publishable_8fKwAVcLPTj8TYWt_lHEpQ_Lp3KD1DI'
+};
+
 const ui = {
+  app: document.querySelector('#app'),
+  hub: document.querySelector('#hub'),
+  gameScreen: document.querySelector('#gameScreen'),
   mapRoot: document.querySelector('#mapRoot'),
   playersRoot: document.querySelector('#playersRoot'),
   provinceRoot: document.querySelector('#provinceRoot'),
@@ -49,59 +57,94 @@ const app = {
   selectedProvinceId: null,
   selectedUnitId: null,
   mode: 'local',
+  view: 'hub',
+  localHumanId: 'eagle',
   supabaseGameId: null,
   supabaseVersion: 0,
   supabaseUser: null,
   unsubscribe: null,
   saving: false,
-  dirty: false
+  pendingPersist: false,
+  lastPersistAt: 0,
+  toastTimer: null
 };
 
 boot();
 
 function boot() {
-  const cfg = loadConfig();
+  const cfg = { ...DEFAULT_SUPABASE, ...loadConfig() };
   ui.supabaseUrlInput.value = cfg.url || '';
   ui.supabaseKeyInput.value = cfg.key || '';
   ui.nicknameInput.value = localStorage.getItem('warforge_nickname') || 'Dowódca';
 
-  document.querySelector('#newLocalBtn').addEventListener('click', () => {
-    setState(createInitialState({ humanName: ui.nicknameInput.value || 'Gracz' }), 'local');
-    toast('Utworzono nową kampanię singleplayer.');
-  });
-  document.querySelector('#saveLocalBtn').addEventListener('click', saveLocal);
-  document.querySelector('#loadLocalBtn').addEventListener('click', loadLocal);
+  document.querySelector('#hubStartBtn').addEventListener('click', startSoloGame);
+  document.querySelector('#hubLoadBtn').addEventListener('click', () => loadLocal({ fromHub: true }));
+  document.querySelector('#hubMultiplayerBtn').addEventListener('click', () => ui.multiplayerDialog.showModal());
+  document.querySelector('#hubDocsBtn').addEventListener('click', () => document.querySelector('#howToPlayDialog').showModal());
+
+  document.querySelector('#hubBtn').addEventListener('click', showHub);
+  document.querySelector('#newLocalBtn').addEventListener('click', startSoloGame);
+  document.querySelector('#saveLocalBtn').addEventListener('click', () => saveLocal(false));
+  document.querySelector('#loadLocalBtn').addEventListener('click', () => loadLocal({ fromHub: false }));
   document.querySelector('#openMultiplayerBtn').addEventListener('click', () => ui.multiplayerDialog.showModal());
   document.querySelector('#connectSupabaseBtn').addEventListener('click', connectFromDialog);
   document.querySelector('#createRoomBtn').addEventListener('click', createRoomFromDialog);
   document.querySelector('#joinRoomBtn').addEventListener('click', joinRoomFromDialog);
 
+  showHub();
   render();
+  window.setInterval(gameLoop, 1000);
+}
+
+function startSoloGame() {
+  disconnectMultiplayer();
+  setState(createInitialState({ humanName: ui.nicknameInput.value || 'Gracz', mode: 'local' }), 'local');
+  app.localHumanId = 'eagle';
+  showGame();
+  toast('Nowa kampania real-time rozpoczęta.');
 }
 
 function setState(nextState, mode = app.mode) {
-  app.state = nextState;
+  app.state = migrateState(nextState);
   app.mode = mode;
   app.selectedProvinceId = null;
   app.selectedUnitId = null;
   render();
 }
 
+function showHub() {
+  app.view = 'hub';
+  ui.hub.hidden = false;
+  ui.gameScreen.hidden = true;
+}
+
+function showGame() {
+  app.view = 'game';
+  ui.hub.hidden = true;
+  ui.gameScreen.hidden = false;
+  render();
+}
+
 function render() {
-  const player = currentPlayer(app.state);
+  migrateState(app.state);
+  if (app.view !== 'game') return;
+  const controlled = controlledPlayer();
   const win = winner(app.state);
-  ui.turnInfo.textContent = win ? `Zwycięstwo: ${win.nickname}` : `Tura ${app.state.turn}`;
-  ui.playerInfo.textContent = `${player.nickname} — ${player.type === 'bot' ? 'bot' : player.type === 'open' ? 'wolne miejsce' : 'człowiek'}`;
+  ui.turnInfo.textContent = win ? `Zwycięstwo: ${win.nickname}` : `Dzień ${app.state.day} · real-time`;
+  ui.playerInfo.textContent = controlled
+    ? `Kontrolujesz: ${controlled.nickname} (${controlled.name})`
+    : app.mode === 'multiplayer'
+      ? 'Obserwator / brak wolnego państwa'
+      : 'Tryb lokalny';
   ui.syncInfo.textContent = app.mode === 'multiplayer'
-    ? `Online${app.state.roomCode ? ` · kod ${app.state.roomCode}` : ''}`
-    : 'Tryb lokalny';
+    ? `Online${app.state.roomCode ? ` · kod ${app.state.roomCode}` : ''}${isHostAuthority() ? ' · host symuluje świat' : ''}`
+    : 'Singleplayer real-time';
   renderMap();
   renderPlayers();
   renderProvince();
   renderUnit();
   renderOrders();
   renderLog();
-  maybeRunBots();
 }
 
 function renderMap() {
@@ -131,7 +174,7 @@ function renderMap() {
     </g>`;
   }).join('');
 
-  const unitChips = app.state.units.map((unit, index) => {
+  const unitChips = app.state.units.map(unit => {
     const province = getProvince(app.state, unit.location);
     const owner = getPlayer(app.state, unit.owner);
     const sameProvinceUnits = unitsAt(app.state, unit.location);
@@ -141,10 +184,11 @@ function renderMap() {
     const x = province.x + Math.cos(angle) * radius;
     const y = province.y + 42 + Math.sin(angle) * 12;
     const selected = app.selectedUnitId === unit.id ? 'selected' : '';
-    return `<g class="unit-chip ${selected}" data-unit-id="${unit.id}" transform="translate(${x} ${y})">
+    const ready = isUnitReady(app.state, unit);
+    return `<g class="unit-chip ${selected} ${ready ? 'ready' : 'cooldown'}" data-unit-id="${unit.id}" transform="translate(${x} ${y})">
       <circle r="19" fill="${owner?.color ?? '#ddd'}"></circle>
       <text y="1">${UNIT_TYPES[unit.type].short}</text>
-      <title>${UNIT_TYPES[unit.type].label} · ${Math.max(0, Math.round(unit.hp))}%</title>
+      <title>${UNIT_TYPES[unit.type].label} · ${Math.max(0, Math.round(unit.hp))}%${ready ? ' · gotowa' : ` · ${readyInSeconds(app.state, unit)} s`}</title>
     </g>`;
   }).join('');
 
@@ -163,10 +207,12 @@ function renderMap() {
 }
 
 function renderPlayers() {
-  ui.playersRoot.innerHTML = app.state.players.map((player, index) => {
+  const controlled = controlledPlayer();
+  ui.playersRoot.innerHTML = app.state.players.map(player => {
     const income = incomeForPlayer(app.state, player.id);
-    const current = index === app.state.currentPlayerIndex ? 'current' : '';
-    const status = player.eliminated ? 'wyeliminowany' : player.type === 'bot' ? 'bot' : player.type === 'open' ? 'wolne' : 'gracz';
+    const current = controlled?.id === player.id ? 'current' : '';
+    const status = player.eliminated ? 'wyeliminowany' : player.type === 'bot' ? 'bot' : player.type === 'open' ? 'wolne' : controlled?.id === player.id ? 'ty' : 'gracz';
+    const controller = player.type === 'human' && player.controller ? `<div class="resources muted">ID: ${escapeHtml(player.controller.slice(0, 8))}</div>` : '';
     return `<article class="player-card ${current}">
       <div class="player-color" style="background:${player.color}"></div>
       <div>
@@ -174,7 +220,8 @@ function renderPlayers() {
         <div class="resources">
           ${resourcePill('money', player.resources.money)} ${resourcePill('manpower', player.resources.manpower)} ${resourcePill('steel', player.resources.steel)} ${resourcePill('oil', player.resources.oil)}
         </div>
-        <div class="resources muted">Dochód: ${formatCost(income)}</div>
+        <div class="resources muted">Dochód/tick: ${formatCost(scaleIncome(income))}</div>
+        ${controller}
       </div>
     </article>`;
   }).join('');
@@ -189,11 +236,11 @@ function renderProvince() {
   }
   ui.provinceRoot.className = 'province-root detail-grid';
   const owner = getPlayer(app.state, province.owner);
-  const income = formatCost(incomeSingleProvince(province));
+  const income = formatCost(scaleIncome(incomeSingleProvince(province)));
   ui.provinceRoot.innerHTML = `
     <div class="detail-row"><strong>${escapeHtml(province.name)}</strong><span>${province.capital ? 'Stolica' : terrainLabel(province.terrain)}</span></div>
     <div class="detail-row"><span>Właściciel</span><span>${escapeHtml(owner?.nickname ?? province.owner)}</span></div>
-    <div class="detail-row"><span>Dochód</span><span>${income}</span></div>
+    <div class="detail-row"><span>Dochód/tick</span><span>${income}</span></div>
     <div class="detail-row"><span>Budynki</span><span>🏭 ${province.buildings.industry} · 🛡 ${province.buildings.fort} · 🛫 ${province.buildings.airbase}</span></div>
     <div class="detail-row"><span>Jednostki</span><span>${unitsAt(app.state, province.id).length}</span></div>`;
 }
@@ -220,36 +267,41 @@ function renderUnit() {
     <div class="detail-row"><strong>${UNIT_TYPES[unit.type].label}</strong><span>${Math.round(unit.hp)}% siły</span></div>
     <div class="detail-row"><span>Państwo</span><span>${escapeHtml(owner?.nickname ?? unit.owner)}</span></div>
     <div class="detail-row"><span>Pozycja</span><span>${escapeHtml(province.name)}</span></div>
-    <div class="detail-row"><span>Status</span><span>${unit.acted ? 'rozkaz wykonany' : 'gotowa'}</span></div>
+    <div class="detail-row"><span>Status</span><span>${isUnitReady(app.state, unit) ? 'gotowa' : `odpoczywa ${readyInSeconds(app.state, unit)} s`}</span></div>
     <div class="detail-row"><span>Doświadczenie</span><span>${unit.xp}</span></div>`;
 }
 
 function renderOrders() {
-  const player = currentPlayer(app.state);
+  const player = controlledPlayer();
   const canAct = userCanAct();
   const province = app.selectedProvinceId ? getProvince(app.state, app.selectedProvinceId) : null;
   const unit = app.selectedUnitId ? app.state.units.find(u => u.id === app.selectedUnitId) : null;
   const buttons = [];
 
-  if (province && province.owner === player.id) {
+  if (!player) {
+    buttons.push('<span class="muted">Nie masz przypisanego państwa. Dołącz do pokoju z wolnym miejscem albo obserwuj rozgrywkę.</span>');
+  }
+
+  if (player && province && province.owner === player.id) {
     for (const [key, building] of Object.entries(BUILDINGS)) {
-      buttons.push(actionButton(`${building.label} (${formatCost(building.cost)})`, () => perform(() => buildBuilding(app.state, province.id, key)), canAct));
+      buttons.push(actionButton(`${building.label} (${formatCost(building.cost)})`, () => perform(() => buildBuilding(app.state, province.id, key, player.id)), canAct));
     }
     for (const [key, unitDef] of Object.entries(UNIT_TYPES)) {
-      buttons.push(actionButton(`Rekrutuj ${unitDef.label} (${formatCost(unitDef.cost)})`, () => perform(() => recruitUnit(app.state, province.id, key)), canAct));
+      buttons.push(actionButton(`Rekrutuj ${unitDef.label} (${formatCost(unitDef.cost)})`, () => perform(() => recruitUnit(app.state, province.id, key, player.id)), canAct));
     }
   }
 
-  if (unit && unit.owner === player.id) {
+  if (player && unit && unit.owner === player.id) {
     for (const targetId of selectableTargets(app.state, unit.id)) {
       const target = getProvince(app.state, targetId);
       const verb = target.owner === unit.owner ? 'Marsz' : 'Atak';
-      buttons.push(actionButton(`${verb}: ${target.name}`, () => perform(() => moveOrAttack(app.state, unit.id, target.id)), canAct));
+      buttons.push(actionButton(`${verb}: ${target.name}`, () => perform(() => moveOrAttack(app.state, unit.id, target.id, player.id)), canAct && isUnitReady(app.state, unit)));
     }
   }
 
-  if (player.type === 'bot') buttons.push(actionButton('Rozegraj turę bota', () => perform(() => runAiTurn(app.state)), app.mode === 'local' || app.mode === 'multiplayer'));
-  buttons.push(actionButton('Zakończ turę', () => perform(() => endTurn(app.state)), canAct));
+  if (app.mode === 'multiplayer' && isHostAuthority() && app.state.players.some(p => p.type === 'open')) {
+    buttons.push(actionButton('Wypełnij wolne kraje botami', () => perform(() => fillOpenSlotsWithBots(app.state)), true));
+  }
 
   if (!buttons.length) buttons.push('<span class="muted">Wybierz własną prowincję lub jednostkę, aby wydać rozkaz.</span>');
   ui.ordersRoot.innerHTML = '';
@@ -260,21 +312,25 @@ function renderOrders() {
 }
 
 function renderLog() {
-  ui.logRoot.innerHTML = (app.state.log ?? []).slice(0, 18).map(item => `<li>${escapeHtml(item)}</li>`).join('');
+  ui.logRoot.innerHTML = (app.state.log ?? []).slice(0, 22).map(item => `<li>${escapeHtml(item)}</li>`).join('');
 }
 
 function onProvinceClick(provinceId) {
-  if (app.selectedUnitId) {
+  const player = controlledPlayer();
+  if (app.selectedUnitId && player) {
     const targets = selectableTargets(app.state, app.selectedUnitId);
     if (targets.includes(provinceId) && userCanAct()) {
-      perform(() => moveOrAttack(app.state, app.selectedUnitId, provinceId));
+      perform(() => moveOrAttack(app.state, app.selectedUnitId, provinceId, player.id));
       return;
     }
   }
   app.selectedProvinceId = provinceId;
-  const player = currentPlayer(app.state);
-  const own = ownUnitsAt(app.state, provinceId, player.id).find(u => !u.acted) || ownUnitsAt(app.state, provinceId, player.id)[0];
-  app.selectedUnitId = own?.id ?? null;
+  if (player) {
+    const own = ownUnitsAt(app.state, provinceId, player.id).find(u => isUnitReady(app.state, u)) || ownUnitsAt(app.state, provinceId, player.id)[0];
+    app.selectedUnitId = own?.id ?? null;
+  } else {
+    app.selectedUnitId = null;
+  }
   render();
 }
 
@@ -295,20 +351,41 @@ function perform(action) {
   const win = winner(app.state);
   if (win) app.state.log.unshift(`${win.nickname} kontroluje mapę. Koniec kampanii!`);
   render();
-  persistIfNeeded();
+  persistIfNeeded({ force: true });
 }
 
-async function persistIfNeeded() {
+function gameLoop() {
+  if (app.view !== 'game') return;
+  if (app.mode === 'local') {
+    const result = advanceRealtime(app.state, { includeBots: true });
+    render();
+    if (result.ok && result.data.changed) saveLocal(true);
+    return;
+  }
+  if (app.mode === 'multiplayer' && isHostAuthority()) {
+    const result = advanceRealtime(app.state, { includeBots: true });
+    render();
+    if (result.ok && result.data.changed) persistIfNeeded({ throttleMs: 1800 });
+  } else {
+    render();
+  }
+}
+
+async function persistIfNeeded({ force = false, throttleMs = 0 } = {}) {
   if (app.mode !== 'multiplayer' || !app.supabaseGameId || app.saving) return;
+  const now = Date.now();
+  if (!force && throttleMs && now - app.lastPersistAt < throttleMs) return;
   app.saving = true;
+  app.lastPersistAt = now;
   try {
     const expected = app.supabaseVersion;
     const stateToSend = structuredClone(app.state);
     const row = await submitState(app.supabaseGameId, stateToSend, expected);
     if (row?.state) {
       app.supabaseVersion = row.version;
-      app.state = row.state;
-      ui.multiplayerStatus.textContent = 'Zapisano ruch w Supabase.';
+      app.state = migrateState(row.state);
+      app.state.roomCode = row.code ?? app.state.roomCode;
+      ui.multiplayerStatus.textContent = 'Zapisano stan w Supabase.';
     }
   } catch (error) {
     ui.multiplayerStatus.textContent = `Błąd synchronizacji: ${error.message}`;
@@ -320,24 +397,19 @@ async function persistIfNeeded() {
 }
 
 function userCanAct() {
-  const player = currentPlayer(app.state);
   if (winner(app.state)) return false;
-  if (app.mode === 'local') return isHumanLocalTurn(app.state);
-  if (player.type === 'bot') return true;
-  return app.supabaseUser && isUsersTurn(app.state, app.supabaseUser.id);
+  return Boolean(controlledPlayer());
 }
 
-function maybeRunBots() {
-  const player = currentPlayer(app.state);
-  if (!player || player.type !== 'bot' || winner(app.state)) return;
-  if (app.mode === 'local') {
-    window.clearTimeout(app.botTimer);
-    app.botTimer = window.setTimeout(() => {
-      runAiTurn(app.state);
-      saveLocal(true);
-      render();
-    }, 450);
-  }
+function controlledPlayer() {
+  if (app.mode === 'local') return getPlayer(app.state, app.localHumanId);
+  return getControlledPlayer(app.state, app.supabaseUser?.id);
+}
+
+function isHostAuthority() {
+  if (app.mode !== 'multiplayer' || !app.supabaseUser) return false;
+  const hostId = app.state.hostUserId || app.state.players[0]?.controller;
+  return hostId === app.supabaseUser.id;
 }
 
 function actionButton(label, handler, enabled = true) {
@@ -352,7 +424,8 @@ function actionButton(label, handler, enabled = true) {
 
 function unitButtonHtml(unit) {
   const owner = getPlayer(app.state, unit.owner);
-  return `<button class="btn small" type="button" data-unit-pick="${unit.id}">${UNIT_TYPES[unit.type].label} · ${owner?.nickname ?? unit.owner} · ${Math.round(unit.hp)}%</button>`;
+  const status = isUnitReady(app.state, unit) ? 'gotowa' : `${readyInSeconds(app.state, unit)} s`;
+  return `<button class="btn small" type="button" data-unit-pick="${unit.id}">${UNIT_TYPES[unit.type].label} · ${owner?.nickname ?? unit.owner} · ${Math.round(unit.hp)}% · ${status}</button>`;
 }
 
 function incomeSingleProvince(province) {
@@ -363,6 +436,10 @@ function incomeSingleProvince(province) {
     steel: province.resources.steel + industry * 10,
     oil: province.resources.oil + (province.buildings.airbase ?? 0) * 2
   };
+}
+
+function scaleIncome(income) {
+  return Object.fromEntries(Object.entries(income).map(([key, value]) => [key, Math.round(value * 0.28)]));
 }
 
 function resourcePill(key, value) {
@@ -381,11 +458,14 @@ function saveLocal(silent = false) {
   if (!silent) toast('Zapisano kampanię w localStorage.');
 }
 
-function loadLocal() {
-  const raw = localStorage.getItem(LOCAL_KEY);
+function loadLocal({ fromHub = false } = {}) {
+  const raw = localStorage.getItem(LOCAL_KEY) || localStorage.getItem('warforge_local_state');
   if (!raw) return toast('Brak zapisu lokalnego.');
   try {
-    setState(JSON.parse(raw), 'local');
+    disconnectMultiplayer();
+    setState(migrateState(JSON.parse(raw)), 'local');
+    app.localHumanId = 'eagle';
+    if (fromHub) showGame();
     toast('Wczytano zapis lokalny.');
   } catch {
     toast('Zapis jest uszkodzony.');
@@ -413,17 +493,19 @@ async function createRoomFromDialog() {
     app.supabaseUser = user;
     app.supabaseGameId = game.id;
     app.supabaseVersion = game.version;
-    const state = structuredClone(game.state);
+    const state = migrateState(structuredClone(game.state));
     state.roomCode = game.code;
+    state.hostUserId = user.id;
     state.players[0].controller = user.id;
     state.players[0].nickname = config.nickname;
     app.mode = 'multiplayer';
     app.state = state;
     setupSubscription(game.id);
     ui.roomCodeInput.value = game.code;
-    ui.multiplayerStatus.textContent = `Utworzono pokój. Kod: ${game.code}`;
-    render();
-    await persistIfNeeded();
+    ui.multiplayerStatus.textContent = `Utworzono pokój. Kod: ${game.code}. Każdy kolejny gracz dostanie własne wolne państwo.`;
+    ui.multiplayerDialog.close();
+    showGame();
+    await persistIfNeeded({ force: true });
   } catch (error) {
     ui.multiplayerStatus.textContent = error.message;
   }
@@ -433,10 +515,8 @@ async function joinRoomFromDialog() {
   try {
     const config = getDialogConfig();
     await connect(config);
-    const { game, user } = await joinRoom({ code: ui.roomCodeInput.value, nickname: config.nickname });
-    const state = structuredClone(game.state);
-    const assignment = assignOpenFaction(state, user.id, config.nickname);
-    if (!assignment.ok) ui.multiplayerStatus.textContent = assignment.error;
+    const { game, user, factionId } = await joinRoom({ code: ui.roomCodeInput.value, nickname: config.nickname });
+    const state = migrateState(structuredClone(game.state));
     state.roomCode = game.code;
     app.supabaseUser = user;
     app.supabaseGameId = game.id;
@@ -444,9 +524,11 @@ async function joinRoomFromDialog() {
     app.mode = 'multiplayer';
     app.state = state;
     setupSubscription(game.id);
-    render();
-    await persistIfNeeded();
-    ui.multiplayerStatus.textContent = `Dołączono do pokoju ${game.code}.`;
+    ui.multiplayerStatus.textContent = factionId === 'spectator'
+      ? `Dołączono do pokoju ${game.code} jako obserwator — brak wolnych państw.`
+      : `Dołączono do pokoju ${game.code} jako ${getPlayer(state, factionId)?.name ?? factionId}.`;
+    ui.multiplayerDialog.close();
+    showGame();
   } catch (error) {
     ui.multiplayerStatus.textContent = error.message;
   }
@@ -457,11 +539,19 @@ function setupSubscription(gameId) {
   app.unsubscribe = subscribeGame(gameId, row => {
     if (app.saving) return;
     app.supabaseVersion = row.version;
-    const next = row.state;
+    const next = migrateState(row.state);
     next.roomCode = row.code ?? next.roomCode;
     app.state = next;
     render();
   });
+}
+
+function disconnectMultiplayer() {
+  if (app.unsubscribe) app.unsubscribe();
+  app.unsubscribe = null;
+  app.supabaseGameId = null;
+  app.supabaseVersion = 0;
+  app.supabaseUser = null;
 }
 
 function getDialogConfig() {
@@ -473,10 +563,13 @@ function getDialogConfig() {
 }
 
 function toast(message) {
-  ui.syncInfo.textContent = message;
+  if (app.view === 'game') ui.syncInfo.textContent = message;
+  else ui.multiplayerStatus.textContent = message;
   window.clearTimeout(app.toastTimer);
   app.toastTimer = window.setTimeout(() => {
-    ui.syncInfo.textContent = app.mode === 'multiplayer' ? 'Online' : 'Tryb lokalny';
+    if (app.view === 'game') {
+      ui.syncInfo.textContent = app.mode === 'multiplayer' ? 'Online' : 'Singleplayer real-time';
+    }
   }, 2600);
 }
 

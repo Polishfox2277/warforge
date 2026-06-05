@@ -47,11 +47,12 @@ export async function ensureAnonymousSession(nickname) {
 export async function createRoom({ name, nickname, initialState }) {
   const sb = client();
   const user = await ensureAnonymousSession(nickname);
+  initialState.hostUserId = user.id;
   initialState.players[0].controller = user.id;
   initialState.players[0].nickname = nickname || 'Host';
   const { data: game, error } = await sb
     .from('games')
-    .insert({ name, host_user: user.id, state: initialState })
+    .insert({ name, host_user: user.id, status: 'running', state: initialState })
     .select('id, code, state, version')
     .single();
   if (error) throw error;
@@ -66,22 +67,16 @@ export async function joinRoom({ code, nickname }) {
   const sb = client();
   const user = await ensureAnonymousSession(nickname);
   const normalized = code.trim().toUpperCase();
-  const { data: game, error } = await sb
-    .from('games')
-    .select('id, code, state, version')
-    .eq('code', normalized)
-    .single();
+  if (!normalized) throw new Error('Wpisz kod pokoju.');
+
+  const { data: game, error } = await sb.rpc('join_game_room', {
+    p_code: normalized,
+    p_nickname: nickname || 'Dowódca'
+  });
   if (error) throw error;
 
-  const state = structuredClone(game.state);
-  const openSlot = state.players.find(p => p.type === 'open');
-  const factionId = openSlot?.id ?? 'spectator';
-  const { error: memberError } = await sb
-    .from('game_members')
-    .upsert({ game_id: game.id, user_id: user.id, nickname, faction_id: factionId, is_host: false }, { onConflict: 'game_id,user_id' });
-  if (memberError) throw memberError;
-
-  return { game, user, factionId };
+  const faction = game.state?.players?.find(p => p.controller === user.id);
+  return { game, user, factionId: faction?.id ?? 'spectator' };
 }
 
 export async function submitState(gameId, state, expectedVersion) {

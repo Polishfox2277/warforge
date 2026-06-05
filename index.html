@@ -3,71 +3,88 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Warforge Provinces — strategiczne MVP</title>
-  <meta name="description" content="Turowa gra strategiczna inspirowana grand strategy, działająca na GitHub Pages + Supabase." />
+  <title>Warforge Provinces — strategiczne MVP real-time</title>
+  <meta name="description" content="Gra strategiczna real-time inspirowana grand strategy, działająca na GitHub Pages + Supabase." />
   <link rel="stylesheet" href="./src/styles.css" />
   <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml" />
 </head>
 <body>
   <noscript>Ta gra wymaga włączonego JavaScriptu.</noscript>
   <div id="app" class="app-shell">
-    <header class="topbar">
-      <div>
+    <section id="hub" class="hub" aria-label="Menu główne">
+      <div class="hub-card">
         <p class="eyebrow">GitHub Pages + Supabase free</p>
         <h1>Warforge Provinces</h1>
-      </div>
-      <nav class="topbar-actions" aria-label="Akcje gry">
-        <button id="newLocalBtn" class="btn primary">Nowa gra solo</button>
-        <button id="saveLocalBtn" class="btn">Zapisz lokalnie</button>
-        <button id="loadLocalBtn" class="btn">Wczytaj</button>
-        <button id="openMultiplayerBtn" class="btn accent">Multiplayer</button>
-      </nav>
-    </header>
-
-    <main class="game-layout">
-      <section class="map-card" aria-label="Mapa prowincji">
-        <div class="hud-strip">
-          <div id="turnInfo">Tura 1</div>
-          <div id="playerInfo">Gracz</div>
-          <div id="syncInfo" class="sync-info">Tryb lokalny</div>
+        <p class="hub-lead">Strategia real-time: przejmuj prowincje, rozwijaj przemysł, dowódź armią i graj solo, z botami albo z innymi graczami.</p>
+        <div class="hub-actions">
+          <button id="hubStartBtn" class="btn accent wide" type="button">Zacznij grę solo</button>
+          <button id="hubMultiplayerBtn" class="btn primary wide" type="button">Multiplayer</button>
+          <button id="hubLoadBtn" class="btn wide" type="button">Wczytaj zapis lokalny</button>
+          <button id="hubDocsBtn" class="btn wide" type="button">Jak grać</button>
         </div>
-        <div id="mapRoot" class="map-root"></div>
-      </section>
+      </div>
+    </section>
 
-      <aside class="side-panel" aria-label="Panel dowodzenia">
-        <section class="panel-block">
-          <h2>Państwa</h2>
-          <div id="playersRoot" class="players-root"></div>
+    <div id="gameScreen" hidden>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Real-time strategy MVP</p>
+          <h1>Warforge Provinces</h1>
+        </div>
+        <nav class="topbar-actions" aria-label="Akcje gry">
+          <button id="hubBtn" class="btn">Menu</button>
+          <button id="newLocalBtn" class="btn primary">Nowa gra solo</button>
+          <button id="saveLocalBtn" class="btn">Zapisz lokalnie</button>
+          <button id="loadLocalBtn" class="btn">Wczytaj</button>
+          <button id="openMultiplayerBtn" class="btn accent">Multiplayer</button>
+        </nav>
+      </header>
+
+      <main class="game-layout">
+        <section class="map-card" aria-label="Mapa prowincji">
+          <div class="hud-strip">
+            <div id="turnInfo">Dzień 1</div>
+            <div id="playerInfo">Gracz</div>
+            <div id="syncInfo" class="sync-info">Tryb lokalny</div>
+          </div>
+          <div id="mapRoot" class="map-root"></div>
         </section>
 
-        <section class="panel-block">
-          <h2>Prowincja</h2>
-          <div id="provinceRoot" class="province-root muted">Kliknij prowincję na mapie.</div>
-        </section>
+        <aside class="side-panel" aria-label="Panel dowodzenia">
+          <section class="panel-block">
+            <h2>Państwa</h2>
+            <div id="playersRoot" class="players-root"></div>
+          </section>
 
-        <section class="panel-block">
-          <h2>Armia</h2>
-          <div id="unitRoot" class="unit-root muted">Kliknij jednostkę albo prowincję z jednostką.</div>
-        </section>
+          <section class="panel-block">
+            <h2>Prowincja</h2>
+            <div id="provinceRoot" class="province-root muted">Kliknij prowincję na mapie.</div>
+          </section>
 
-        <section class="panel-block">
-          <h2>Rozkazy</h2>
-          <div id="ordersRoot" class="orders-root"></div>
-        </section>
+          <section class="panel-block">
+            <h2>Armia</h2>
+            <div id="unitRoot" class="unit-root muted">Kliknij jednostkę albo prowincję z jednostką.</div>
+          </section>
 
-        <section class="panel-block log-block">
-          <h2>Dziennik</h2>
-          <ol id="logRoot" class="log-root"></ol>
-        </section>
-      </aside>
-    </main>
+          <section class="panel-block">
+            <h2>Rozkazy</h2>
+            <div id="ordersRoot" class="orders-root"></div>
+          </section>
+
+          <section class="panel-block log-block">
+            <h2>Dziennik</h2>
+            <ol id="logRoot" class="log-root"></ol>
+          </section>
+        </aside>
+      </main>
+    </div>
   </div>
 
   <dialog id="multiplayerDialog" class="dialog">
     <form method="dialog" class="dialog-inner">
       <button value="cancel" class="dialog-close" aria-label="Zamknij">×</button>
       <h2>Multiplayer przez Supabase</h2>
-      <p class="muted">Dane są zapisywane lokalnie w przeglądarce. Klucz Supabase anon/publishable jest publiczny, dlatego bezpieczeństwo zapewnia RLS w SQL.</p>
+      <p class="muted">Host symuluje świat real-time i zapisuje stan w Supabase. Dołączający gracze są atomowo przypisywani do pierwszego wolnego państwa.</p>
       <label>URL projektu Supabase
         <input id="supabaseUrlInput" type="url" placeholder="https://xxxxx.supabase.co" autocomplete="off" />
       </label>
@@ -86,6 +103,17 @@
       </label>
       <button id="joinRoomBtn" class="btn primary wide" type="button">Dołącz do pokoju</button>
       <p id="multiplayerStatus" class="status-line"></p>
+    </form>
+  </dialog>
+
+  <dialog id="howToPlayDialog" class="dialog">
+    <form method="dialog" class="dialog-inner">
+      <button value="cancel" class="dialog-close" aria-label="Zamknij">×</button>
+      <h2>Jak grać</h2>
+      <p class="muted">Nie ma tur. Zasoby wpadają co kilka sekund, jednostki mają cooldown po marszu lub ataku, a boty wykonują rozkazy automatycznie.</p>
+      <p>1. Kliknij własną prowincję, żeby budować przemysł, forty, lotniska albo rekrutować jednostki.</p>
+      <p>2. Kliknij własną jednostkę, a potem sąsiednią prowincję, żeby wykonać marsz albo atak.</p>
+      <p>3. W multiplayerze host tworzy pokój, a kolejni gracze wpisują kod pokoju. Każdy otrzymuje własne wolne państwo.</p>
     </form>
   </dialog>
 

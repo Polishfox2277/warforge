@@ -6,15 +6,22 @@ export const FACTIONS = [
 ];
 
 export const UNIT_TYPES = {
-  infantry: { label: 'Piechota', short: 'P', cost: { money: 90, manpower: 90, steel: 10, oil: 0 }, attack: 30, defense: 40, move: 1 },
-  artillery: { label: 'Artyleria', short: 'A', cost: { money: 130, manpower: 55, steel: 35, oil: 0 }, attack: 46, defense: 22, move: 1 },
-  tank: { label: 'Czołgi', short: 'C', cost: { money: 190, manpower: 45, steel: 65, oil: 45 }, attack: 68, defense: 52, move: 1 }
+  infantry: { label: 'Piechota', short: 'P', cost: { money: 90, manpower: 90, steel: 10, oil: 0 }, attack: 30, defense: 40, move: 1, cooldownMs: 9000 },
+  artillery: { label: 'Artyleria', short: 'A', cost: { money: 130, manpower: 55, steel: 35, oil: 0 }, attack: 46, defense: 22, move: 1, cooldownMs: 12000 },
+  tank: { label: 'Czołgi', short: 'C', cost: { money: 190, manpower: 45, steel: 65, oil: 45 }, attack: 68, defense: 52, move: 1, cooldownMs: 15000 }
 };
 
 export const BUILDINGS = {
   industry: { label: 'Przemysł', max: 4, cost: { money: 130, manpower: 15, steel: 80, oil: 0 }, description: '+ dochód i produkcja' },
   fort: { label: 'Forty', max: 3, cost: { money: 90, manpower: 30, steel: 60, oil: 0 }, description: '+ obrona prowincji' },
   airbase: { label: 'Lotnisko', max: 2, cost: { money: 120, manpower: 20, steel: 50, oil: 25 }, description: 'rezerwa pod lotnictwo' }
+};
+
+export const REALTIME_DEFAULTS = {
+  dayMs: 30000,
+  economyEveryMs: 12000,
+  aiEveryMs: 3500,
+  maxCatchUpMs: 45000
 };
 
 const NAMES = [
@@ -34,6 +41,7 @@ export function terrainLabel(terrain) {
 
 export function createInitialState({ humanName = 'Gracz', mode = 'local', userId = null } = {}) {
   const provinces = createMap();
+  const now = Date.now();
   const players = FACTIONS.map((faction, index) => ({
     ...faction,
     type: index === 0 ? 'human' : 'bot',
@@ -44,34 +52,47 @@ export function createInitialState({ humanName = 'Gracz', mode = 'local', userId
   }));
 
   if (mode === 'multiplayer') {
-    players[1].type = 'open';
-    players[1].nickname = 'Wolne miejsce';
-    players[2].type = 'bot';
-    players[3].type = 'bot';
+    players[0].type = 'human';
+    players[0].controller = userId;
+    players[0].nickname = humanName || 'Host';
+    for (let i = 1; i < players.length; i += 1) {
+      players[i].type = 'open';
+      players[i].controller = null;
+      players[i].nickname = 'Wolne miejsce';
+    }
   }
 
   const units = [];
   const capitals = { eagle: 'p0', union: 'p4', nomads: 'p15', crown: 'p19' };
   for (const faction of FACTIONS) {
-    units.push(createUnit('infantry', faction.id, capitals[faction.id]));
-    units.push(createUnit(faction.id === 'crown' ? 'artillery' : 'infantry', faction.id, capitals[faction.id]));
+    units.push(createUnit('infantry', faction.id, capitals[faction.id], now));
+    units.push(createUnit(faction.id === 'crown' ? 'artillery' : 'infantry', faction.id, capitals[faction.id], now));
   }
 
   const state = {
-    schema: 1,
+    schema: 2,
     mode,
     version: 0,
     rng: 174921,
-    turn: 1,
-    currentPlayerIndex: 0,
+    day: 1,
+    gameTimeMs: 0,
+    hostUserId: mode === 'multiplayer' ? userId : null,
+    realtime: {
+      paused: false,
+      lastWallAt: now,
+      lastEconomyAt: 0,
+      lastAiAt: 0,
+      dayMs: REALTIME_DEFAULTS.dayMs,
+      economyEveryMs: REALTIME_DEFAULTS.economyEveryMs,
+      aiEveryMs: REALTIME_DEFAULTS.aiEveryMs
+    },
     provinces,
     units,
     players,
     selectedProvinceId: null,
     selectedUnitId: null,
-    log: ['Rozpoczęto kampanię. Rozbuduj przemysł, zbierz armię i przejmij stolice przeciwników.']
+    log: ['Rozpoczęto kampanię real-time. Rozbuduj przemysł, zbierz armię i przejmij stolice przeciwników.']
   };
-  startTurn(state, currentPlayer(state).id, { silent: true });
   return state;
 }
 
@@ -79,8 +100,8 @@ function createMap() {
   const provinces = [];
   const rows = 4;
   const cols = 5;
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
+  for (let r = 0; r < rows; r += 1) {
+    for (let c = 0; c < cols; c += 1) {
       const id = `p${r * cols + c}`;
       const owner = r < 2 ? (c < 3 ? 'eagle' : 'union') : (c < 2 ? 'nomads' : 'crown');
       const terrain = TERRAINS[(r * 7 + c * 3) % TERRAINS.length];
@@ -121,15 +142,15 @@ function provinceResources(terrain, capital) {
 }
 
 function findNeighbors(province, all) {
-  const dirsEven = [[0,-1],[0,1],[-1,-1],[-1,0],[1,-1],[1,0]];
-  const dirsOdd = [[0,-1],[0,1],[-1,0],[-1,1],[1,0],[1,1]];
+  const dirsEven = [[0, -1], [0, 1], [-1, -1], [-1, 0], [1, -1], [1, 0]];
+  const dirsOdd = [[0, -1], [0, 1], [-1, 0], [-1, 1], [1, 0], [1, 1]];
   const dirs = province.row % 2 === 0 ? dirsEven : dirsOdd;
   return dirs
     .map(([dr, dc]) => all.find(p => p.row === province.row + dr && p.col === province.col + dc))
     .filter(Boolean);
 }
 
-export function createUnit(type, owner, location) {
+export function createUnit(type, owner, location, now = 0) {
   return {
     id: `u_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
     type,
@@ -137,16 +158,61 @@ export function createUnit(type, owner, location) {
     location,
     hp: 100,
     xp: 0,
+    availableAt: now,
     acted: false
   };
 }
 
+export function migrateState(state) {
+  if (!state) return state;
+  state.schema = 2;
+  state.day = state.day ?? state.turn ?? 1;
+  state.gameTimeMs = state.gameTimeMs ?? Math.max(0, ((state.turn ?? 1) - 1) * REALTIME_DEFAULTS.dayMs);
+  state.realtime = {
+    paused: false,
+    lastWallAt: Date.now(),
+    lastEconomyAt: 0,
+    lastAiAt: 0,
+    dayMs: REALTIME_DEFAULTS.dayMs,
+    economyEveryMs: REALTIME_DEFAULTS.economyEveryMs,
+    aiEveryMs: REALTIME_DEFAULTS.aiEveryMs,
+    ...(state.realtime ?? {})
+  };
+  if (!Array.isArray(state.players)) state.players = [];
+  for (const player of state.players) {
+    player.resources = {
+      money: 0,
+      manpower: 0,
+      steel: 0,
+      oil: 0,
+      ...(player.resources ?? {})
+    };
+    player.eliminated = Boolean(player.eliminated);
+  }
+  if (!Array.isArray(state.units)) state.units = [];
+  for (const unit of state.units) {
+    unit.availableAt = unit.availableAt ?? state.gameTimeMs;
+    unit.acted = false;
+  }
+  state.log = Array.isArray(state.log) ? state.log : [];
+  state.version = state.version ?? 0;
+  return state;
+}
+
 export function currentPlayer(state) {
-  return state.players[state.currentPlayerIndex];
+  migrateState(state);
+  if (Number.isInteger(state.currentPlayerIndex) && state.players[state.currentPlayerIndex]) return state.players[state.currentPlayerIndex];
+  return state.players.find(p => p.type === 'human' && !p.eliminated) ?? state.players.find(p => p.type !== 'open' && !p.eliminated) ?? state.players[0];
 }
 
 export function getPlayer(state, playerId) {
   return state.players.find(p => p.id === playerId);
+}
+
+export function getControlledPlayer(state, userId) {
+  if (!userId) return null;
+  migrateState(state);
+  return state.players.find(p => p.type === 'human' && p.controller === userId && !p.eliminated) ?? null;
 }
 
 export function getProvince(state, provinceId) {
@@ -176,7 +242,7 @@ function pay(player, cost) {
 export function formatCost(cost) {
   return Object.entries(cost)
     .filter(([, value]) => value > 0)
-    .map(([key, value]) => `${resourceIcon(key)} ${value}`)
+    .map(([key, value]) => `${resourceIcon(key)} ${Math.round(value)}`)
     .join(' · ');
 }
 
@@ -203,19 +269,12 @@ export function incomeForPlayer(state, playerId) {
   return total;
 }
 
-export function startTurn(state, playerId, { silent = false } = {}) {
-  const player = getPlayer(state, playerId);
-  if (!player || player.eliminated || player.type === 'open') return;
-  const income = incomeForPlayer(state, playerId);
-  for (const key of Object.keys(player.resources)) player.resources[key] += income[key];
-  for (const unit of state.units.filter(u => u.owner === playerId)) unit.acted = false;
-  if (!silent) pushLog(state, `${player.nickname}: dochód ${formatCost(income)}.`);
-}
-
-export function buildBuilding(state, provinceId, buildingType) {
-  const player = currentPlayer(state);
+export function buildBuilding(state, provinceId, buildingType, actorPlayerId = null) {
+  migrateState(state);
+  const player = getActionPlayer(state, actorPlayerId);
   const province = getProvince(state, provinceId);
   const building = BUILDINGS[buildingType];
+  if (!player) return fail('Nie kontrolujesz aktywnego państwa.');
   if (!province || !building) return fail('Nieznana budowa.');
   if (province.owner !== player.id) return fail('Możesz budować tylko we własnej prowincji.');
   const level = province.buildings[buildingType] ?? 0;
@@ -228,41 +287,47 @@ export function buildBuilding(state, provinceId, buildingType) {
   return ok();
 }
 
-export function recruitUnit(state, provinceId, unitType) {
-  const player = currentPlayer(state);
+export function recruitUnit(state, provinceId, unitType, actorPlayerId = null) {
+  migrateState(state);
+  const player = getActionPlayer(state, actorPlayerId);
   const province = getProvince(state, provinceId);
   const unitDef = UNIT_TYPES[unitType];
+  if (!player) return fail('Nie kontrolujesz aktywnego państwa.');
   if (!province || !unitDef) return fail('Nieznana rekrutacja.');
   if (province.owner !== player.id) return fail('Rekrutacja jest możliwa tylko we własnej prowincji.');
   if (!canAfford(player, unitDef.cost)) return fail(`Brakuje zasobów: ${formatCost(unitDef.cost)}.`);
   pay(player, unitDef.cost);
-  const unit = createUnit(unitType, player.id, provinceId);
+  const unit = createUnit(unitType, player.id, provinceId, state.gameTimeMs);
   state.units.push(unit);
   pushLog(state, `${player.nickname}: zrekrutowano ${unitDef.label} w ${province.name}.`);
   mutate(state);
   return ok(unit);
 }
 
-export function moveOrAttack(state, unitId, targetProvinceId) {
-  const player = currentPlayer(state);
+export function moveOrAttack(state, unitId, targetProvinceId, actorPlayerId = null) {
+  migrateState(state);
+  const player = getActionPlayer(state, actorPlayerId);
   const unit = state.units.find(u => u.id === unitId && u.hp > 0);
   const target = getProvince(state, targetProvinceId);
+  if (!player) return fail('Nie kontrolujesz aktywnego państwa.');
   if (!unit || !target) return fail('Nie wybrano poprawnej jednostki lub celu.');
   if (unit.owner !== player.id) return fail('To nie jest twoja jednostka.');
-  if (unit.acted) return fail('Ta jednostka wykonała już rozkaz w tej turze.');
+  if (!isUnitReady(state, unit)) return fail(`Jednostka będzie gotowa za ${readyInSeconds(state, unit)} s.`);
   const origin = getProvince(state, unit.location);
   if (!origin.neighbors.includes(targetProvinceId)) return fail('Jednostka może poruszyć się tylko do sąsiedniej prowincji.');
 
   if (target.owner === unit.owner && enemyUnitsAt(state, targetProvinceId, unit.owner).length === 0) {
     unit.location = targetProvinceId;
-    unit.acted = true;
+    unit.availableAt = state.gameTimeMs + (UNIT_TYPES[unit.type].cooldownMs ?? 10000);
+    unit.acted = false;
     pushLog(state, `${UNIT_TYPES[unit.type].label} przeszła z ${origin.name} do ${target.name}.`);
     mutate(state);
     return ok();
   }
 
   const result = resolveCombat(state, unit, target);
-  unit.acted = true;
+  unit.availableAt = state.gameTimeMs + (UNIT_TYPES[unit.type].cooldownMs ?? 10000);
+  unit.acted = false;
   mutate(state);
   return result;
 }
@@ -314,63 +379,28 @@ function checkEliminations(state, possiblePlayerId) {
   }
 }
 
-export function endTurn(state) {
-  const previous = currentPlayer(state);
-  let guard = 0;
-  do {
-    state.currentPlayerIndex = (state.currentPlayerIndex + 1) % state.players.length;
-    if (state.currentPlayerIndex === 0) state.turn += 1;
-    guard += 1;
-  } while ((currentPlayer(state).eliminated || currentPlayer(state).type === 'open') && guard < state.players.length + 1);
-  const next = currentPlayer(state);
-  pushLog(state, `${previous.nickname} kończy turę. Teraz gra ${next.nickname}.`);
-  startTurn(state, next.id);
-  mutate(state);
-  return ok();
-}
-
-export function runAiTurn(state) {
-  const player = currentPlayer(state);
-  if (!player || player.type !== 'bot') return fail('Aktualny gracz nie jest botem.');
-
-  const owned = state.provinces.filter(p => p.owner === player.id);
-  const affordableIndustry = owned.find(p => (p.buildings.industry ?? 0) < BUILDINGS.industry.max && canAfford(player, BUILDINGS.industry.cost));
-  if (affordableIndustry) buildBuilding(state, affordableIndustry.id, 'industry');
-
-  const provinceForRecruitment = owned.find(p => ownUnitsAt(state, p.id, player.id).length < 3) ?? owned[0];
-  if (provinceForRecruitment) {
-    const unitChoice = canAfford(player, UNIT_TYPES.tank.cost) && nextRandom(state) > 0.55 ? 'tank' : 'infantry';
-    if (canAfford(player, UNIT_TYPES[unitChoice].cost)) recruitUnit(state, provinceForRecruitment.id, unitChoice);
-  }
-
-  for (const unit of state.units.filter(u => u.owner === player.id && !u.acted)) {
-    const province = getProvince(state, unit.location);
-    const enemyNeighbor = province.neighbors
-      .map(id => getProvince(state, id))
-      .filter(p => p.owner !== player.id)
-      .sort((a, b) => defenseEstimate(state, a, player.id) - defenseEstimate(state, b, player.id))[0];
-    if (enemyNeighbor) {
-      moveOrAttack(state, unit.id, enemyNeighbor.id);
-    } else {
-      const frontier = province.neighbors.map(id => getProvince(state, id)).find(p => p.neighbors.some(n => getProvince(state, n).owner !== player.id));
-      if (frontier) moveOrAttack(state, unit.id, frontier.id);
+export function fillOpenSlotsWithBots(state) {
+  migrateState(state);
+  let changed = false;
+  for (const player of state.players) {
+    if (player.type === 'open') {
+      player.type = 'bot';
+      player.controller = null;
+      player.nickname = player.name;
+      changed = true;
     }
   }
-
-  return endTurn(state);
-}
-
-function defenseEstimate(state, province, attackerId) {
-  return TERRAIN_DEF[province.terrain] + (province.buildings.fort ?? 0) * 22 + enemyUnitsAt(state, province.id, attackerId).length * 35;
-}
-
-export function winner(state) {
-  const activeOwners = new Set(state.provinces.map(p => p.owner));
-  const active = state.players.filter(p => activeOwners.has(p.id) && !p.eliminated && p.type !== 'open');
-  return active.length === 1 ? active[0] : null;
+  if (changed) {
+    pushLog(state, 'Wolne państwa zostały przejęte przez boty.');
+    mutate(state);
+  }
+  return ok(changed);
 }
 
 export function assignOpenFaction(state, userId, nickname) {
+  migrateState(state);
+  const existing = getControlledPlayer(state, userId);
+  if (existing) return ok(existing);
   const slot = state.players.find(p => p.type === 'open');
   if (!slot) return fail('Brak wolnego miejsca. Możesz obserwować rozgrywkę.');
   slot.type = 'human';
@@ -381,28 +411,173 @@ export function assignOpenFaction(state, userId, nickname) {
   return ok(slot);
 }
 
+export function advanceRealtime(state, { now = Date.now(), includeBots = true } = {}) {
+  migrateState(state);
+  if (winner(state)) return ok({ changed: false });
+  const rt = state.realtime;
+  if (rt.paused) {
+    rt.lastWallAt = now;
+    return ok({ changed: false });
+  }
+
+  const elapsedWall = Math.max(0, Math.min(now - (rt.lastWallAt ?? now), REALTIME_DEFAULTS.maxCatchUpMs));
+  rt.lastWallAt = now;
+  state.gameTimeMs += elapsedWall;
+  state.day = Math.max(1, Math.floor(state.gameTimeMs / (rt.dayMs ?? REALTIME_DEFAULTS.dayMs)) + 1);
+
+  let changed = elapsedWall > 0;
+  let incomeTicks = 0;
+  while (state.gameTimeMs - (rt.lastEconomyAt ?? 0) >= (rt.economyEveryMs ?? REALTIME_DEFAULTS.economyEveryMs) && incomeTicks < 6) {
+    rt.lastEconomyAt = (rt.lastEconomyAt ?? 0) + (rt.economyEveryMs ?? REALTIME_DEFAULTS.economyEveryMs);
+    grantIncomeToAll(state);
+    incomeTicks += 1;
+    changed = true;
+  }
+  if (incomeTicks > 0) pushLog(state, `Dzień ${state.day}: gospodarka wypłaciła zasoby wszystkim aktywnym państwom.`);
+
+  if (includeBots && state.gameTimeMs - (rt.lastAiAt ?? 0) >= (rt.aiEveryMs ?? REALTIME_DEFAULTS.aiEveryMs)) {
+    rt.lastAiAt = state.gameTimeMs;
+    const botChanged = runBotsOnce(state);
+    changed = changed || botChanged;
+  }
+
+  if (changed) mutate(state, { quiet: true });
+  return ok({ changed });
+}
+
+function grantIncomeToAll(state) {
+  for (const player of state.players) {
+    if (player.eliminated || player.type === 'open') continue;
+    const income = incomeForPlayer(state, player.id);
+    for (const key of Object.keys(player.resources)) {
+      player.resources[key] += Math.round(income[key] * 0.28);
+    }
+  }
+}
+
+function runBotsOnce(state) {
+  let changed = false;
+  for (const player of state.players.filter(p => p.type === 'bot' && !p.eliminated)) {
+    const result = runAiStep(state, player.id);
+    changed = changed || result.ok;
+  }
+  return changed;
+}
+
+export function runAiStep(state, playerId) {
+  migrateState(state);
+  const player = getPlayer(state, playerId);
+  if (!player || player.type !== 'bot' || player.eliminated) return fail('Ten gracz nie jest botem.');
+
+  let changed = false;
+  const owned = state.provinces.filter(p => p.owner === player.id);
+  if (!owned.length) return fail('Bot nie ma prowincji.');
+
+  if (nextRandom(state) > 0.55) {
+    const affordableIndustry = owned
+      .filter(p => (p.buildings.industry ?? 0) < BUILDINGS.industry.max && canAfford(player, BUILDINGS.industry.cost))
+      .sort((a, b) => (a.buildings.industry ?? 0) - (b.buildings.industry ?? 0))[0];
+    if (affordableIndustry) {
+      buildBuilding(state, affordableIndustry.id, 'industry', player.id);
+      changed = true;
+    }
+  }
+
+  const provinceForRecruitment = owned.find(p => ownUnitsAt(state, p.id, player.id).length < 3) ?? owned[0];
+  if (provinceForRecruitment && nextRandom(state) > 0.35) {
+    const unitChoice = canAfford(player, UNIT_TYPES.tank.cost) && nextRandom(state) > 0.55 ? 'tank' : 'infantry';
+    if (canAfford(player, UNIT_TYPES[unitChoice].cost)) {
+      recruitUnit(state, provinceForRecruitment.id, unitChoice, player.id);
+      changed = true;
+    }
+  }
+
+  const readyUnits = state.units.filter(u => u.owner === player.id && isUnitReady(state, u));
+  for (const unit of readyUnits.slice(0, 2)) {
+    const province = getProvince(state, unit.location);
+    const enemyNeighbor = province.neighbors
+      .map(id => getProvince(state, id))
+      .filter(p => p.owner !== player.id)
+      .sort((a, b) => defenseEstimate(state, a, player.id) - defenseEstimate(state, b, player.id))[0];
+    if (enemyNeighbor) {
+      moveOrAttack(state, unit.id, enemyNeighbor.id, player.id);
+      changed = true;
+    } else {
+      const frontier = province.neighbors
+        .map(id => getProvince(state, id))
+        .find(p => p.neighbors.some(n => getProvince(state, n).owner !== player.id));
+      if (frontier && nextRandom(state) > 0.55) {
+        moveOrAttack(state, unit.id, frontier.id, player.id);
+        changed = true;
+      }
+    }
+  }
+
+  return changed ? ok() : fail('Bot nie wykonał akcji.');
+}
+
+export function runAiTurn(state) {
+  const bot = state.players.find(p => p.type === 'bot' && !p.eliminated);
+  if (!bot) return fail('Brak aktywnego bota.');
+  return runAiStep(state, bot.id);
+}
+
+export function endTurn(state) {
+  migrateState(state);
+  pushLog(state, 'Ta wersja działa w czasie rzeczywistym — nie ma już ręcznych tur.');
+  return ok();
+}
+
+function defenseEstimate(state, province, attackerId) {
+  return TERRAIN_DEF[province.terrain] + (province.buildings.fort ?? 0) * 22 + enemyUnitsAt(state, province.id, attackerId).length * 35;
+}
+
+export function winner(state) {
+  migrateState(state);
+  const activeOwners = new Set(state.provinces.map(p => p.owner));
+  const active = state.players.filter(p => activeOwners.has(p.id) && !p.eliminated);
+  return active.length === 1 ? active[0] : null;
+}
+
 export function isUsersTurn(state, userId) {
-  const player = currentPlayer(state);
-  return player.type === 'human' && player.controller === userId;
+  return Boolean(getControlledPlayer(state, userId));
 }
 
 export function isHumanLocalTurn(state) {
-  return currentPlayer(state).type === 'human';
+  migrateState(state);
+  return state.players.some(p => p.type === 'human' && !p.eliminated);
+}
+
+export function isUnitReady(state, unit) {
+  migrateState(state);
+  return (unit?.availableAt ?? 0) <= state.gameTimeMs;
+}
+
+export function readyInSeconds(state, unit) {
+  migrateState(state);
+  return Math.max(0, Math.ceil(((unit?.availableAt ?? 0) - state.gameTimeMs) / 1000));
 }
 
 export function selectableTargets(state, unitId) {
+  migrateState(state);
   const unit = state.units.find(u => u.id === unitId && u.hp > 0);
-  if (!unit || unit.acted) return [];
+  if (!unit) return [];
   return getProvince(state, unit.location)?.neighbors ?? [];
 }
 
 export function pushLog(state, message) {
-  state.log = [message, ...(state.log ?? [])].slice(0, 80);
+  state.log = [message, ...(state.log ?? [])].slice(0, 100);
 }
 
-export function mutate(state) {
+export function mutate(state, { quiet = false } = {}) {
   state.version = (state.version ?? 0) + 1;
   state.updatedAt = new Date().toISOString();
+  if (!quiet) state.lastActionAt = state.updatedAt;
+}
+
+function getActionPlayer(state, actorPlayerId) {
+  if (actorPlayerId) return getPlayer(state, actorPlayerId);
+  return currentPlayer(state);
 }
 
 function nextRandom(state) {

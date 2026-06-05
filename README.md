@@ -1,30 +1,22 @@
-# Warforge Provinces
+# Warforge Provinces — MVP real-time
 
-Turowa gra strategiczna inspirowana skalą **Call of War / Hearts of Iron IV**, przygotowana pod darmowy, statyczny stack:
+Statyczna gra strategiczna inspirowana Call of War / Hearts of Iron, przygotowana pod GitHub Pages + Supabase Free.
 
-- **GitHub Pages** jako hosting frontendu,
-- **Supabase** jako Auth, Postgres, RPC i Realtime,
-- bez bundlera i bez backendu Node — wszystko działa z plików statycznych.
+## Co zmieniono w tej wersji
 
-To jest grywalne MVP: mapa prowincji, rozbudowa przemysłu/fortów/lotnisk, zasoby, rekrutacja, ruch, walka, boty, zapis lokalny i prosty multiplayer z pokojami.
+- Dodano hub/menu główne z opcjami: Zacznij grę solo, Multiplayer, Wczytaj zapis i Jak grać.
+- Gra działa w czasie rzeczywistym: nie ma ręcznych tur.
+- Zasoby są generowane co kilka sekund.
+- Jednostki mają cooldown po ruchu lub ataku.
+- Boty wykonują decyzje automatycznie.
+- Multiplayer przypisuje dołączającego gracza do pierwszego wolnego państwa.
+- Przypisanie kraju odbywa się atomowo w Supabase przez RPC `join_game_room`, więc dwóch graczy nie powinno dostać tego samego państwa.
+- Host multiplayera symuluje świat real-time i zapisuje stan w Supabase.
 
-## Funkcje w tej wersji
-
-- 20 fikcyjnych prowincji na mapie heksowej.
-- 4 frakcje, stolice, teren i sąsiedztwo prowincji.
-- Zasoby: pieniądze, rekruci, stal, ropa.
-- Budynki: przemysł, forty, lotniska.
-- Jednostki: piechota, artyleria, czołgi.
-- Turowa gospodarka i walka.
-- Boty wykonujące rozbudowę, rekrutację i ataki.
-- Singleplayer w `localStorage`.
-- Multiplayer przez Supabase z anonimowym logowaniem, pokojem i Realtime.
-
-## Szybki start lokalny
-
-W folderze projektu uruchom serwer statyczny:
+## Uruchomienie lokalne
 
 ```bash
+cd warforge-mvp-configured
 python3 -m http.server 5173
 ```
 
@@ -34,67 +26,47 @@ Otwórz:
 http://localhost:5173
 ```
 
-Możesz też otworzyć `index.html` bez serwera, ale serwer lokalny lepiej obsługuje moduły ES.
+## GitHub Pages
 
-## Wdrożenie na GitHub Pages
+1. Wgraj zawartość tego folderu do repozytorium GitHub.
+2. Wejdź w **Settings → Pages**.
+3. Wybierz **Deploy from a branch**.
+4. Ustaw branch `main` i folder `/root`.
+5. Otwórz opublikowany adres Pages.
 
-1. Utwórz repozytorium na GitHubie, np. `warforge-provinces`.
-2. Wgraj zawartość tego folderu do głównego katalogu repozytorium.
-3. W GitHubie wejdź w **Settings → Pages**.
-4. Ustaw **Source: Deploy from a branch**.
-5. Wybierz branch `main` i folder `/root`.
-6. Po zapisie GitHub Pages opublikuje `index.html`.
+## Supabase
 
-## Konfiguracja Supabase
-
-1. Utwórz projekt w Supabase.
-2. Włącz anonimowe logowanie: **Authentication → Sign In / Providers → Anonymous sign-ins**.
-3. Wejdź w **SQL Editor** i uruchom cały plik:
+W projekcie Supabase uruchom plik:
 
 ```text
 supabase/schema.sql
 ```
 
-4. Wejdź w **Project Settings → API** i skopiuj:
-   - Project URL,
-   - publiczny `anon` / `publishable` key.
-5. W grze kliknij **Multiplayer** i wklej te dane.
-6. Kliknij **Połącz**, potem **Utwórz pokój** albo **Dołącz do pokoju**.
-
-## Jak grać
-
-1. Kliknij prowincję.
-2. Jeżeli należy do aktualnego gracza, możesz budować i rekrutować.
-3. Kliknij jednostkę, potem sąsiednią prowincję, aby wykonać marsz lub atak.
-4. Kliknij **Zakończ turę**.
-5. Boty w singleplayerze wykonują swoje tury automatycznie.
-
-## Multiplayer — ważne ograniczenia MVP
-
-Ta wersja jest client-authoritative: logika gry działa w przeglądarce, a Supabase zapisuje aktualny stan. RLS ogranicza dostęp do pokojów i wymaga logowania, ale nie jest to jeszcze system anty-cheat klasy produkcyjnej. Do publicznej gry rankingowej trzeba przenieść rozstrzyganie tur do bezpiecznej warstwy serwerowej, np. Supabase Edge Functions albo własny backend.
-
-## Struktura projektu
+Potem włącz anonimowe logowanie:
 
 ```text
-.
-├── index.html
-├── assets/
-│   └── favicon.svg
-├── src/
-│   ├── app.js             # UI, wejście aplikacji, multiplayer flow
-│   ├── engine.js          # zasady gry, ekonomia, walka, AI
-│   ├── styles.css         # wygląd gry
-│   └── supabaseClient.js  # Supabase Auth, RPC, Realtime
-└── supabase/
-    └── schema.sql         # tabele, RLS, RPC, Realtime publication
+Authentication → Sign In / Providers → Anonymous sign-ins → Enable
 ```
 
-## Następne kroki rozwoju
+Projekt jest już skonfigurowany pod:
 
-- Mgła wojny i rozpoznanie.
-- Drzewko technologii.
-- Dyplomacja i pakty.
-- Kolejka produkcji i czas budowy zamiast natychmiastowych akcji.
-- Rozkazy równoczesne i rozstrzyganie fazy po kliknięciu „koniec tury”.
-- Serwerowa walidacja ruchów, jeżeli gra ma być publiczna i konkurencyjna.
-- Edytor mapy oraz import większych map.
+```text
+Project URL:
+https://mcldlpljgcitixwbnjfb.supabase.co
+
+Public key:
+sb_publishable_8fKwAVcLPTj8TYWt_lHEpQ_Lp3KD1DI
+```
+
+## Jak testować multiplayer
+
+1. Otwórz grę w jednej przeglądarce.
+2. Kliknij **Multiplayer → Utwórz pokój**.
+3. Skopiuj kod pokoju.
+4. Otwórz grę w innej przeglądarce, profilu albo trybie incognito.
+5. Kliknij **Multiplayer**, wpisz kod pokoju i kliknij **Dołącz do pokoju**.
+6. Dołączający gracz powinien dostać własne państwo, np. Liga Rzeczna, Stepowe Chanaty albo Korona Południa.
+
+## Ważne ograniczenie MVP
+
+Ta wersja działa na darmowym, statycznym stacku bez własnego serwera gry. Oznacza to, że host przeglądarkowy jest autorytetem symulacji świata. Do produkcyjnego, rankingowego multiplayera potrzebny byłby osobny backend albo Supabase Edge Functions walidujące rozkazy.
