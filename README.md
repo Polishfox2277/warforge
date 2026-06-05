@@ -1,74 +1,125 @@
-# Warforge Provinces — setup + readable map update
+# Warforge Provinces — rebalance, maps and expanded country editor
 
 Statyczna gra strategiczna real-time pod GitHub Pages + Supabase Free.
 
-## Co dodano w tej wersji
+## Co zmieniono w tej wersji
 
-### 1. Dokładniejszy setup kampanii
+### 1. Duży rebalance gry
 
-Przycisk **Setup kampanii solo** otwiera teraz ekran ustawień przed startem:
+Poprzednia wersja była zbyt trudna, bo boty działały szybko, zbyt często rekrutowały i atakowały, a obrona pól była za wysoka. Ta wersja jest celowo łagodniejsza.
 
-- tempo gry: wolne / normalne / szybkie,
-- trudność botów: łatwa / normalna / trudna,
-- zasoby startowe: niskie / normalne / wysokie,
-- nazwa dowódcy.
+Najważniejsze zmiany:
 
-Te ustawienia wpływają na realną rozgrywkę:
-- tempo zmienia częstotliwość gospodarki, AI i długość dnia,
-- trudność zmienia zasoby botów, dochód botów, siłę ataku botów i szybkość ich decyzji,
-- zasoby startowe zmieniają startowy budżet.
+- większe zasoby startowe gracza,
+- mniejsze startowe zasoby botów na normalnym poziomie,
+- wolniejsze i mniej agresywne AI,
+- boty nie atakują już każdego frontu naraz,
+- puste prowincje mają realnie `PUSTA · 0`,
+- obniżona obrona terenu, garnizonów i fortów,
+- jednostki są trochę skuteczniejsze w ataku,
+- gospodarka daje trochę większy dochód na tick,
+- limity lokalnych jednostek zmniejszają spam armii w jednym polu.
 
-### 2. Czytelniejsza mapa
+Aktualna filozofia balansu:
 
-Każda prowincja ma teraz widoczne oznaczenie:
+```text
+Łatwy    = tryb nauki i testów
+Normalny = grywalny standard, gracz ma czas reagować
+Trudny   = boty mają lekką przewagę, ale nie powinny być absurdalne
+```
 
-- **PUSTA · 0** — łatwa do zajęcia, brak ukrytej obrony,
-- **ARMIA · X** — stoi tam jednostka / jednostki,
-- **FORT · X** — prowincja jest broniona fortyfikacją,
-- **STOLICA · X** — stolica ma garnizon nawet bez jednostek.
+### 2. Trzy mapy do wyboru
 
-Dodatkowo:
-- jednostki mają paski HP,
-- prowincje mają pasek kondycji pola,
-- zniszczenia prowincji są pokazane jako pęknięcia i procent zniszczeń,
-- zniszczenia obniżają dochód prowincji,
-- zniszczenia można naprawiać akcją **Napraw szkody**,
-- zniszczenia powoli spadają same przy tickach gospodarki, szybciej w prowincjach z przemysłem.
+W setupie gry jest wybór mapy:
 
-### 3. Lepsza ergonomia
+- **Pogranicze** — 4 kraje / 20 prowincji
+- **Kontynent Valdoru** — 6 krajów / 48 prowincji
+- **Wielka Wojna** — 8 krajów / 80 prowincji
 
-Najważniejsza zmiana sterowania:
+W multiplayerze host wybiera mapę pokoju w oknie multiplayer.
 
-**Kliknięcie prowincji już nie rusza przypadkowo jednostki.**
+### 3. Więcej krajów
 
-Nowy schemat:
+Silnik obsługuje teraz do 8 krajów na mapie.
 
-1. Klikasz prowincję — tylko ją wybierasz.
-2. Klikasz jednostkę — tylko ją wybierasz.
-3. Klikasz **Wydaj rozkaz**.
-4. Dopiero teraz kliknięcie sąsiedniej prowincji wykonuje marsz albo atak.
+Boty są losowane z większej puli gotowych państw. Każde ma:
+- nazwę,
+- kolor,
+- flagę,
+- ideologię,
+- ustrój,
+- doktrynę,
+- cechę narodową.
 
-To rozwiązuje problem przypadkowego ruchu armii przy przeglądaniu mapy.
+### 4. Dokładniejszy edytor państwa
 
-### 4. Szybkie akcje nad mapą
+Kreator kraju ma teraz więcej elementów:
 
-Nie trzeba ciągle scrollować do bocznego panelu.
+- nazwa kraju,
+- kolor mapy,
+- kolor dodatkowy,
+- ideologia,
+- ustrój,
+- doktryna wojskowa,
+- cecha narodowa,
+- układ flagi,
+- emblemat flagi.
 
-Po wyborze własnej prowincji nad mapą pojawiają się:
-- budowa przemysłu,
-- budowa fortu,
-- budowa lotniska,
-- naprawa szkód,
-- rekrutacja piechoty,
-- rekrutacja artylerii,
-- rekrutacja czołgów.
+Wszystko zapisuje się w `localStorage`.
 
-Boczny panel nadal istnieje jako panel szczegółów.
+### 5. Nowe warstwy buffów państwa
+
+Państwo ma teraz kilka niezależnych warstw:
+
+#### Ideologia
+Przykłady:
+- Industrializm
+- Militaryzm
+- Kolektywizm
+- Technokracja
+
+#### Ustrój
+Przykłady:
+- Republika
+- Monarchia
+- Rada Ludowa
+- Dyrektoriat
+
+#### Doktryna wojskowa
+Przykłady:
+- Zrównoważona
+- Manewrowa
+- Siła ognia
+- Obrona głęboka
+
+#### Cecha narodowa
+Przykłady:
+- Korpus inżynieryjny
+- Zagłębia rudne
+- Pola naftowe
+- Kupcy i banki
+- Patriotyczna mobilizacja
+
+### 6. Zachowane poprawki ergonomii
+
+Nadal działa bezpieczniejsze sterowanie:
+
+1. klik prowincji tylko wybiera prowincję,
+2. klik jednostki tylko wybiera jednostkę,
+3. ruch lub atak wymaga przycisku **Wydaj rozkaz**,
+4. dopiero potem kliknięcie sąsiedniego pola wykonuje rozkaz.
+
+Nadal są też:
+- szybkie akcje nad mapą,
+- etykiety obrony pól,
+- paski HP,
+- zniszczenia prowincji,
+- naprawy szkód.
 
 ## Uruchomienie lokalne
 
 ```bash
-cd warforge-mvp-setup-ui
+cd warforge-mvp-balance-maps-country
 python3 -m http.server 5173
 ```
 
@@ -80,15 +131,19 @@ http://localhost:5173
 
 ## Supabase
 
-Jeżeli masz już wgrany SQL z wersji `custom-country` albo `map-expanded`, SQL nie wymaga zmiany dla tej aktualizacji.
-
-Dla pewności możesz ponownie uruchomić:
+Uruchom ponownie plik:
 
 ```text
 supabase/schema.sql
 ```
 
-Nadal wymagane jest:
+Jest to ważne, bo multiplayer dostał nowe pola kraju:
+
+- `government`,
+- `doctrine`,
+- `trait`.
+
+W Supabase nadal musi być włączone:
 
 ```text
 Authentication → Anonymous sign-ins → Enable
@@ -101,6 +156,6 @@ Authentication → Anonymous sign-ins → Enable
 3. Deploy from a branch.
 4. Branch `main`, folder `/root`.
 
-## Notatka projektowa
+## Znane ograniczenie MVP
 
-Mapa jest nadal MVP, ale ma już czytelny system informacji strategicznej. Kolejny dobry krok to wydzielenie mapy do `mapData.js` i później zrobienie edytora mapy.
+Host przeglądarkowy nadal jest autorytetem świata w multiplayerze. Do produkcyjnego multiplayera trzeba później dodać walidację ruchów po stronie backendu albo Supabase Edge Functions.

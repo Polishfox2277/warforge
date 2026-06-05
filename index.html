@@ -15,7 +15,7 @@
       <div class="hub-card">
         <p class="eyebrow">GitHub Pages + Supabase free</p>
         <h1>Warforge Provinces</h1>
-        <p class="hub-lead">Strategia real-time: przejmuj prowincje, rozwijaj przemysł, dowódź armią i graj solo, z botami albo z innymi graczami.</p>
+        <p class="hub-lead">Strategia real-time: wybierz mapę, stwórz państwo, przejmuj prowincje, rozwijaj przemysł i graj solo, z botami albo z innymi graczami.</p>
         <div id="hubCountrySummary" class="hub-country-summary"></div>
         <div class="hub-actions">
           <button id="hubStartBtn" class="btn accent wide" type="button">Setup kampanii solo</button>
@@ -99,6 +99,9 @@
       <h2>Setup kampanii</h2>
       <p class="muted">Tutaj ustawiasz tempo i trudność przed startem. Własny kraj nadal bierze się z kreatora kraju zapisanego w localStorage.</p>
       <div class="setup-grid">
+        <label>Mapa kampanii
+          <select id="setupMapInput"></select>
+        </label>
         <label>Tempo gry
           <select id="setupPaceInput">
             <option value="slow">Wolne — więcej czasu na decyzje</option>
@@ -145,6 +148,9 @@
         <input id="nicknameInput" type="text" placeholder="Dowódca" maxlength="28" />
       </label>
       <div id="multiplayerCountrySummary" class="mini-country-card"></div>
+      <label>Mapa pokoju
+        <select id="multiplayerMapInput"></select>
+      </label>
       <div class="dialog-grid">
         <button id="connectSupabaseBtn" class="btn primary" type="button">Połącz</button>
         <button id="createRoomBtn" class="btn accent" type="button">Utwórz pokój</button>
@@ -175,6 +181,15 @@
           </label>
           <label>Ideologia
             <select id="countryIdeologyInput"></select>
+          </label>
+          <label>Ustrój
+            <select id="countryGovernmentInput"></select>
+          </label>
+          <label>Doktryna wojskowa
+            <select id="countryDoctrineInput"></select>
+          </label>
+          <label>Cecha narodowa
+            <select id="countryTraitInput"></select>
           </label>
           <label>Układ flagi
             <select id="countryFlagPatternInput">

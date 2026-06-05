@@ -131,6 +131,9 @@ create or replace function public.join_game_room(
   p_color text default '#7b5cff',
   p_secondary_color text default '#f2b84b',
   p_ideology text default 'industrialist',
+  p_government text default 'republic',
+  p_doctrine text default 'balanced',
+  p_trait text default 'engineers',
   p_flag jsonb default '{"pattern":"horizontal","emblem":"star","primary":"#7b5cff","secondary":"#f2b84b"}'::jsonb
 )
 returns public.games
@@ -200,6 +203,9 @@ begin
           'color', p_color,
           'secondaryColor', p_secondary_color,
           'ideology', p_ideology,
+          'government', p_government,
+          'doctrine', p_doctrine,
+          'trait', p_trait,
           'flag', p_flag,
           'eliminated', false
         );
@@ -240,7 +246,7 @@ begin
 end;
 $$;
 
-grant execute on function public.join_game_room(text, text, text, text, text, text, jsonb) to authenticated;
+grant execute on function public.join_game_room(text, text, text, text, text, text, text, text, text, jsonb) to authenticated;
 
 create or replace function public.submit_game_state(
   p_game_id uuid,

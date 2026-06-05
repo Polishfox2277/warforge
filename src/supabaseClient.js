@@ -76,6 +76,9 @@ export async function joinRoom({ code, nickname, countryProfile }) {
     p_color: countryProfile?.color || '#7b5cff',
     p_secondary_color: countryProfile?.secondaryColor || '#f2b84b',
     p_ideology: countryProfile?.ideology || 'industrialist',
+    p_government: countryProfile?.government || 'republic',
+    p_doctrine: countryProfile?.doctrine || 'balanced',
+    p_trait: countryProfile?.trait || 'engineers',
     p_flag: countryProfile?.flag || {
       pattern: countryProfile?.flagPattern || 'horizontal',
       emblem: countryProfile?.emblem || 'star',

@@ -1,15 +1,72 @@
-export const FACTIONS = [
+export const BASE_FACTION_SLOTS = [
   { id: 'eagle', slotName: 'slot_1' },
   { id: 'union', slotName: 'slot_2' },
   { id: 'nomads', slotName: 'slot_3' },
-  { id: 'crown', slotName: 'slot_4' }
+  { id: 'crown', slotName: 'slot_4' },
+  { id: 'forge', slotName: 'slot_5' },
+  { id: 'tide', slotName: 'slot_6' },
+  { id: 'ashen', slotName: 'slot_7' },
+  { id: 'highland', slotName: 'slot_8' }
 ];
+
+export const FACTIONS = BASE_FACTION_SLOTS;
+
+export const MAP_PRESETS = {
+  skirmish: {
+    id: 'skirmish',
+    label: 'Pogranicze',
+    description: 'Mała mapa 4 kraje / 20 prowincji. Najlepsza do szybkiego testu.',
+    rows: 4,
+    cols: 5,
+    factions: 4,
+    width: 1000,
+    height: 610,
+    x0: 118,
+    y0: 100,
+    xStep: 175,
+    yStep: 132,
+    oddOffset: 84
+  },
+  continental: {
+    id: 'continental',
+    label: 'Kontynent Valdoru',
+    description: 'Średnia mapa 6 krajów / 48 prowincji. Domyślna, najbardziej grywalna.',
+    rows: 6,
+    cols: 8,
+    factions: 6,
+    width: 1180,
+    height: 760,
+    x0: 78,
+    y0: 76,
+    xStep: 138,
+    yStep: 108,
+    oddOffset: 54
+  },
+  grand: {
+    id: 'grand',
+    label: 'Wielka Wojna',
+    description: 'Duża mapa 8 krajów / 80 prowincji. Dłuższa kampania.',
+    rows: 8,
+    cols: 10,
+    factions: 8,
+    width: 1380,
+    height: 920,
+    x0: 70,
+    y0: 70,
+    xStep: 126,
+    yStep: 98,
+    oddOffset: 48
+  }
+};
 
 export const DEFAULT_CUSTOM_COUNTRY = {
   name: 'Federacja Zenith',
   color: '#7b5cff',
   secondaryColor: '#f2b84b',
   ideology: 'industrialist',
+  government: 'republic',
+  doctrine: 'balanced',
+  trait: 'engineers',
   flagPattern: 'horizontal',
   emblem: 'star'
 };
@@ -18,9 +75,9 @@ export const IDEOLOGIES = {
   industrialist: {
     label: 'Industrializm',
     short: 'IND',
-    description: '+15% dochodu 💰 i ⚙️, -10% kosztu przemysłu.',
-    incomeMult: { money: 1.15, steel: 1.15 },
-    buildingDiscounts: { industry: 0.9 },
+    description: '+12% dochodu 💰 i ⚙️, -8% kosztu przemysłu.',
+    incomeMult: { money: 1.12, steel: 1.12 },
+    buildingDiscounts: { industry: 0.92 },
     unitDiscounts: {},
     attackMult: 1,
     defenseMult: 1,
@@ -29,120 +86,219 @@ export const IDEOLOGIES = {
   militarist: {
     label: 'Militaryzm',
     short: 'MIL',
-    description: '+10% siły ataku, -10% cooldownu jednostek, -5% kosztów rekrutacji.',
+    description: '+7% ataku, -7% cooldownu, -4% kosztu jednostek.',
     incomeMult: {},
     buildingDiscounts: {},
-    unitDiscounts: { infantry: 0.95, artillery: 0.95, tank: 0.95 },
-    attackMult: 1.1,
+    unitDiscounts: { infantry: 0.96, artillery: 0.96, tank: 0.96 },
+    attackMult: 1.07,
     defenseMult: 1,
-    cooldownMult: 0.9
+    cooldownMult: 0.93
   },
   collectivist: {
     label: 'Kolektywizm',
     short: 'KOL',
-    description: '+18% dochodu 👥, +6% obrony, -12% kosztu piechoty.',
-    incomeMult: { manpower: 1.18 },
+    description: '+14% dochodu 👥, +4% obrony, -8% kosztu piechoty.',
+    incomeMult: { manpower: 1.14 },
     buildingDiscounts: {},
-    unitDiscounts: { infantry: 0.88 },
+    unitDiscounts: { infantry: 0.92 },
     attackMult: 1,
-    defenseMult: 1.06,
+    defenseMult: 1.04,
     cooldownMult: 1
   },
   technocrat: {
     label: 'Technokracja',
     short: 'TECH',
-    description: '+10% dochodu 🛢️, -12% kosztu artylerii i czołgów, -10% kosztu lotnisk.',
-    incomeMult: { oil: 1.1 },
-    buildingDiscounts: { airbase: 0.9 },
-    unitDiscounts: { artillery: 0.88, tank: 0.88 },
+    description: '+8% dochodu 🛢️, -9% kosztu artylerii/czołgów i lotnisk.',
+    incomeMult: { oil: 1.08 },
+    buildingDiscounts: { airbase: 0.91 },
+    unitDiscounts: { artillery: 0.91, tank: 0.91 },
     attackMult: 1,
     defenseMult: 1,
     cooldownMult: 1
   }
 };
 
+export const GOVERNMENTS = {
+  republic: {
+    label: 'Republika',
+    description: '+8% dochodu pieniędzy, tańsze naprawy.',
+    incomeMult: { money: 1.08 },
+    repairDiscount: 0.88,
+    stability: 1.02
+  },
+  monarchy: {
+    label: 'Monarchia',
+    description: '+5% obrony stolic i fortów, +5% rekrutów.',
+    incomeMult: { manpower: 1.05 },
+    capitalDefenseMult: 1.05,
+    fortDefenseMult: 1.05
+  },
+  council: {
+    label: 'Rada Ludowa',
+    description: '+9% rekrutów, -6% kosztu piechoty.',
+    incomeMult: { manpower: 1.09 },
+    unitDiscounts: { infantry: 0.94 }
+  },
+  directorate: {
+    label: 'Dyrektoriat',
+    description: '+6% stali i ropy, -5% kosztu budynków.',
+    incomeMult: { steel: 1.06, oil: 1.06 },
+    buildingDiscounts: { industry: 0.95, fort: 0.95, airbase: 0.95 }
+  }
+};
+
+export const DOCTRINES = {
+  balanced: {
+    label: 'Doktryna zrównoważona',
+    description: 'Brak ryzykownych skrajności. +3% ataku i obrony.',
+    attackMult: 1.03,
+    defenseMult: 1.03,
+    cooldownMult: 1
+  },
+  maneuver: {
+    label: 'Manewrowa',
+    description: '-12% cooldownu ruchu i ataku, ale -3% obrony.',
+    attackMult: 1,
+    defenseMult: 0.97,
+    cooldownMult: 0.88
+  },
+  firepower: {
+    label: 'Siła ognia',
+    description: '+9% ataku artylerii i czołgów, +5% kosztu jednostek.',
+    attackMult: 1.04,
+    heavyAttackMult: 1.09,
+    defenseMult: 1,
+    unitCostMult: 1.05,
+    cooldownMult: 1
+  },
+  defense: {
+    label: 'Obrona głęboka',
+    description: '+9% obrony, forty efektywniejsze, +6% cooldownu.',
+    attackMult: 0.98,
+    defenseMult: 1.09,
+    fortDefenseMult: 1.1,
+    cooldownMult: 1.06
+  }
+};
+
+export const TRAITS = {
+  engineers: {
+    label: 'Korpus inżynieryjny',
+    description: '-12% kosztu fortów i napraw.',
+    buildingDiscounts: { fort: 0.88 },
+    repairDiscount: 0.88
+  },
+  miners: {
+    label: 'Zagłębia rudne',
+    description: '+12% dochodu ⚙️.',
+    incomeMult: { steel: 1.12 }
+  },
+  oilfields: {
+    label: 'Pola naftowe',
+    description: '+14% dochodu 🛢️.',
+    incomeMult: { oil: 1.14 }
+  },
+  traders: {
+    label: 'Kupcy i banki',
+    description: '+10% pieniędzy, +4% kosztu rekrutacji.',
+    incomeMult: { money: 1.10 },
+    unitCostMult: 1.04
+  },
+  patriots: {
+    label: 'Patriotyczna mobilizacja',
+    description: '+10% rekrutów, -3% obrony.',
+    incomeMult: { manpower: 1.10 },
+    defenseMult: 0.97
+  }
+};
+
 export const BOT_COUNTRY_PRESETS = [
-  { name: 'Republika Bursztynu', color: '#c4525a', secondaryColor: '#f4d26a', ideology: 'industrialist', flagPattern: 'vertical', emblem: 'gear' },
-  { name: 'Wolne Marchie Ardonii', color: '#4d89e8', secondaryColor: '#d7e6ff', ideology: 'technocrat', flagPattern: 'cross', emblem: 'star' },
-  { name: 'Konfederacja Nivarii', color: '#4eaf73', secondaryColor: '#f1f7ef', ideology: 'collectivist', flagPattern: 'horizontal', emblem: 'sun' },
-  { name: 'Królestwo Solwinu', color: '#d6a047', secondaryColor: '#5f2d16', ideology: 'militarist', flagPattern: 'diagonal', emblem: 'crown' },
-  { name: 'Związek Trzech Portów', color: '#3ca6a6', secondaryColor: '#efffff', ideology: 'industrialist', flagPattern: 'horizontal', emblem: 'anchor' },
-  { name: 'Dyrektoriat Valon', color: '#8d6cf7', secondaryColor: '#f7f0ff', ideology: 'technocrat', flagPattern: 'vertical', emblem: 'gear' },
-  { name: 'Front Północnych Rubieży', color: '#688e45', secondaryColor: '#f6f0cb', ideology: 'collectivist', flagPattern: 'cross', emblem: 'star' },
-  { name: 'Liga Szkarłatnych Mostów', color: '#b64662', secondaryColor: '#f7d6df', ideology: 'militarist', flagPattern: 'horizontal', emblem: 'sun' },
-  { name: 'Księstwa Asterii', color: '#dd7f3e', secondaryColor: '#fff4e7', ideology: 'militarist', flagPattern: 'diagonal', emblem: 'crown' },
-  { name: 'Komuna Rudnych Wzgórz', color: '#9d4edd', secondaryColor: '#f1defc', ideology: 'collectivist', flagPattern: 'vertical', emblem: 'hammer' },
-  { name: 'Republika Morenii', color: '#3278b3', secondaryColor: '#f4f8fb', ideology: 'technocrat', flagPattern: 'horizontal', emblem: 'anchor' },
-  { name: 'Stalowa Unia Karsji', color: '#7e8c99', secondaryColor: '#f4ca64', ideology: 'industrialist', flagPattern: 'cross', emblem: 'gear' }
+  { name: 'Republika Bursztynu', color: '#c4525a', secondaryColor: '#f4d26a', ideology: 'industrialist', government: 'republic', doctrine: 'balanced', trait: 'traders', flagPattern: 'vertical', emblem: 'gear' },
+  { name: 'Wolne Marchie Ardonii', color: '#4d89e8', secondaryColor: '#d7e6ff', ideology: 'technocrat', government: 'directorate', doctrine: 'firepower', trait: 'oilfields', flagPattern: 'cross', emblem: 'star' },
+  { name: 'Konfederacja Nivarii', color: '#4eaf73', secondaryColor: '#f1f7ef', ideology: 'collectivist', government: 'council', doctrine: 'defense', trait: 'patriots', flagPattern: 'horizontal', emblem: 'sun' },
+  { name: 'Królestwo Solwinu', color: '#d6a047', secondaryColor: '#5f2d16', ideology: 'militarist', government: 'monarchy', doctrine: 'balanced', trait: 'engineers', flagPattern: 'diagonal', emblem: 'crown' },
+  { name: 'Związek Trzech Portów', color: '#3ca6a6', secondaryColor: '#efffff', ideology: 'industrialist', government: 'republic', doctrine: 'maneuver', trait: 'traders', flagPattern: 'horizontal', emblem: 'anchor' },
+  { name: 'Dyrektoriat Valon', color: '#8d6cf7', secondaryColor: '#f7f0ff', ideology: 'technocrat', government: 'directorate', doctrine: 'firepower', trait: 'miners', flagPattern: 'vertical', emblem: 'gear' },
+  { name: 'Front Północnych Rubieży', color: '#688e45', secondaryColor: '#f6f0cb', ideology: 'collectivist', government: 'council', doctrine: 'defense', trait: 'engineers', flagPattern: 'cross', emblem: 'star' },
+  { name: 'Liga Szkarłatnych Mostów', color: '#b64662', secondaryColor: '#f7d6df', ideology: 'militarist', government: 'republic', doctrine: 'maneuver', trait: 'patriots', flagPattern: 'horizontal', emblem: 'sun' },
+  { name: 'Księstwa Asterii', color: '#dd7f3e', secondaryColor: '#fff4e7', ideology: 'militarist', government: 'monarchy', doctrine: 'firepower', trait: 'oilfields', flagPattern: 'diagonal', emblem: 'crown' },
+  { name: 'Komuna Rudnych Wzgórz', color: '#9d4edd', secondaryColor: '#f1defc', ideology: 'collectivist', government: 'council', doctrine: 'balanced', trait: 'miners', flagPattern: 'vertical', emblem: 'hammer' },
+  { name: 'Republika Morenii', color: '#3278b3', secondaryColor: '#f4f8fb', ideology: 'technocrat', government: 'republic', doctrine: 'maneuver', trait: 'traders', flagPattern: 'horizontal', emblem: 'anchor' },
+  { name: 'Stalowa Unia Karsji', color: '#7e8c99', secondaryColor: '#f4ca64', ideology: 'industrialist', government: 'directorate', doctrine: 'defense', trait: 'engineers', flagPattern: 'cross', emblem: 'gear' },
+  { name: 'Protektorat Czarnych Kopuł', color: '#59606f', secondaryColor: '#f6d365', ideology: 'militarist', government: 'directorate', doctrine: 'defense', trait: 'miners', flagPattern: 'diagonal', emblem: 'crown' },
+  { name: 'Rzeczpospolita Miru', color: '#2f9e8f', secondaryColor: '#f8fff9', ideology: 'industrialist', government: 'republic', doctrine: 'balanced', trait: 'oilfields', flagPattern: 'cross', emblem: 'anchor' },
+  { name: 'Zakon Wysokiej Przełęczy', color: '#a15c38', secondaryColor: '#fff0d0', ideology: 'collectivist', government: 'monarchy', doctrine: 'defense', trait: 'engineers', flagPattern: 'vertical', emblem: 'sun' },
+  { name: 'Liga Lazurowego Brzegu', color: '#1d70a2', secondaryColor: '#b8f3ff', ideology: 'technocrat', government: 'republic', doctrine: 'maneuver', trait: 'traders', flagPattern: 'horizontal', emblem: 'anchor' }
 ];
 
 export const UNIT_TYPES = {
-  infantry: { label: 'Piechota', short: 'P', cost: { money: 90, manpower: 90, steel: 10, oil: 0 }, attack: 30, defense: 40, move: 1, cooldownMs: 9000 },
-  artillery: { label: 'Artyleria', short: 'A', cost: { money: 130, manpower: 55, steel: 35, oil: 0 }, attack: 46, defense: 22, move: 1, cooldownMs: 12000 },
-  tank: { label: 'Czołgi', short: 'C', cost: { money: 190, manpower: 45, steel: 65, oil: 45 }, attack: 68, defense: 52, move: 1, cooldownMs: 15000 }
+  infantry: { label: 'Piechota', short: 'P', cost: { money: 80, manpower: 75, steel: 8, oil: 0 }, attack: 34, defense: 34, move: 1, cooldownMs: 9500 },
+  artillery: { label: 'Artyleria', short: 'A', cost: { money: 120, manpower: 45, steel: 30, oil: 0 }, attack: 56, defense: 18, move: 1, cooldownMs: 12500 },
+  tank: { label: 'Czołgi', short: 'C', cost: { money: 170, manpower: 38, steel: 55, oil: 38 }, attack: 72, defense: 42, move: 1, cooldownMs: 14500 }
 };
 
 export const BUILDINGS = {
-  industry: { label: 'Przemysł', max: 4, cost: { money: 130, manpower: 15, steel: 80, oil: 0 }, description: '+ dochód i produkcja' },
-  fort: { label: 'Forty', max: 3, cost: { money: 110, manpower: 35, steel: 75, oil: 0 }, description: '+ umiarkowana obrona, słabsza przeciw artylerii' },
-  airbase: { label: 'Lotnisko', max: 2, cost: { money: 120, manpower: 20, steel: 50, oil: 25 }, description: 'rezerwa pod lotnictwo' }
+  industry: { label: 'Przemysł', max: 4, cost: { money: 115, manpower: 10, steel: 60, oil: 0 }, description: '+ dochód i produkcja' },
+  fort: { label: 'Forty', max: 3, cost: { money: 95, manpower: 25, steel: 55, oil: 0 }, description: '+ umiarkowana obrona, słabsza przeciw artylerii' },
+  airbase: { label: 'Lotnisko', max: 2, cost: { money: 105, manpower: 15, steel: 40, oil: 20 }, description: 'rezerwa pod lotnictwo' }
 };
 
 export const BALANCE = {
   maxUnitCooldownMs: 30000,
-  fortDefenseByLevel: [0, 7, 12, 16],
-  fortDamageReductionByLevel: [0, 0.05, 0.08, 0.10],
-  artilleryFortPierceByLevel: [0, 4, 7, 10]
+  fortDefenseByLevel: [0, 4, 7, 10],
+  fortDamageReductionByLevel: [0, 0.03, 0.05, 0.07],
+  artilleryFortPierceByLevel: [0, 3, 5, 7]
 };
 
 export const REALTIME_DEFAULTS = {
-  dayMs: 30000,
-  economyEveryMs: 12000,
-  aiEveryMs: 3500,
+  dayMs: 34000,
+  economyEveryMs: 14000,
+  aiEveryMs: 5200,
   maxCatchUpMs: 45000
 };
 
 export const SETUP_DEFAULTS = {
+  mapId: 'continental',
   pace: 'normal',
   difficulty: 'normal',
-  startResources: 'normal',
-  economyEveryMs: REALTIME_DEFAULTS.economyEveryMs,
-  aiEveryMs: REALTIME_DEFAULTS.aiEveryMs,
-  dayMs: REALTIME_DEFAULTS.dayMs
+  startResources: 'normal'
 };
 
 const SETUP_PRESETS = {
   pace: {
-    slow: { economyEveryMs: 18000, aiEveryMs: 5200, dayMs: 42000 },
-    normal: { economyEveryMs: 12000, aiEveryMs: 3500, dayMs: 30000 },
-    fast: { economyEveryMs: 8000, aiEveryMs: 2400, dayMs: 22000 }
+    slow: { economyEveryMs: 19000, aiEveryMs: 7000, dayMs: 46000 },
+    normal: { economyEveryMs: 14000, aiEveryMs: 5200, dayMs: 34000 },
+    fast: { economyEveryMs: 9500, aiEveryMs: 3900, dayMs: 26000 }
   },
   startResources: {
-    low: 0.72,
+    low: 0.82,
     normal: 1,
-    high: 1.45
+    high: 1.35
   },
   difficulty: {
-    easy: { botResources: 0.78, botIncome: 0.86, botAttack: 0.92, aiEveryFactor: 1.25 },
-    normal: { botResources: 1, botIncome: 1, botAttack: 1, aiEveryFactor: 1 },
-    hard: { botResources: 1.25, botIncome: 1.15, botAttack: 1.08, aiEveryFactor: 0.82 }
+    easy: { botResources: 0.62, botIncome: 0.72, botAttack: 0.84, botRecruitChance: 0.28, botBuildChance: 0.25, botMoveChance: 0.48, aiEveryFactor: 1.55 },
+    normal: { botResources: 0.82, botIncome: 0.88, botAttack: 0.94, botRecruitChance: 0.38, botBuildChance: 0.34, botMoveChance: 0.58, aiEveryFactor: 1.25 },
+    hard: { botResources: 1.04, botIncome: 1.03, botAttack: 1.02, botRecruitChance: 0.48, botBuildChance: 0.44, botMoveChance: 0.66, aiEveryFactor: 1 }
   }
 };
 
-const TERRAIN_DEF = { plains: 0, forest: 8, hills: 14, city: 18, marsh: 10 };
-const TERRAIN_ORG_LOSS = { plains: 3, forest: 5, hills: 6, city: 7, marsh: 8 };
-
-const NAMES = [
+const NAME_POOL = [
   'Arden', 'Ravel', 'Korn', 'Srebrny Bród', 'Falk', 'Nowy Port', 'Wysoka Latarnia', 'Rivermark',
   'Dolina Solna', 'Ester', 'Wolnigrad', 'Bursztyn', 'Księżycowe Pola', 'Żelazny Trakt', 'Mokradła Elsen', 'Brzeg Wschodni',
   'Kaldera', 'Mosty', 'Dębina', 'Rudnica', 'Stare Opactwo', 'Srebrna', 'Północny Przesmyk', 'Zielona Marchia',
   'Górny Step', 'Orch', 'Pustkowie', 'Bielica', 'Suchy Las', 'Równia Koronna', 'Czarne Kopce', 'Złoty Jar',
   'Królewiec', 'Południca', 'Kamienny Brzeg', 'Wyżyna Sarn', 'Kopalnie Vald', 'Delta Miru', 'Port Słony', 'Ostatnia Straż',
-  'Czerwona Przełęcz', 'Niziny Toru', 'Wrzosowisko', 'Głębokie Jezioro', 'Lazurowy Brzeg', 'Trzy Wieże', 'Zamek Południa', 'Ogród Korony'
+  'Czerwona Przełęcz', 'Niziny Toru', 'Wrzosowisko', 'Głębokie Jezioro', 'Lazurowy Brzeg', 'Trzy Wieże', 'Zamek Południa', 'Ogród Korony',
+  'Szklany Las', 'Nadbrzeże Kruków', 'Białe Mury', 'Ruda Zatoka', 'Wielkie Łąki', 'Słoneczne Pole', 'Mroźna Granica', 'Zielony Fort',
+  'Półwysep Dor', 'Stare Kopalnie', 'Siedem Mostów', 'Nowa Kaldera', 'Pustynia Varr', 'Złote Wydmy', 'Górna Rzeka', 'Skały Nivar',
+  'Okręg Mir', 'Cisowe Pola', 'Wrota Zachodu', 'Słony Jar', 'Mglista Dolina', 'Północne Baszty', 'Ostatnia Delta', 'Przylądek Falk',
+  'Dolina Trzech Wsi', 'Ognisty Grzbiet', 'Martwy Las', 'Niebieski Trakt', 'Kamienna Rzeka', 'Rubież Koralowa', 'Żurawie Bagna', 'Cichy Port'
 ];
 
 const TERRAINS = ['plains', 'forest', 'hills', 'city', 'marsh'];
 const TERRAIN_LABELS = { plains: 'równiny', forest: 'las', hills: 'wzgórza', city: 'miasto', marsh: 'bagna' };
+const TERRAIN_DEF = { plains: 0, forest: 5, hills: 9, city: 11, marsh: 7 };
+const TERRAIN_ORG_LOSS = { plains: 2, forest: 4, hills: 5, city: 6, marsh: 6 };
 
 export function terrainLabel(terrain) {
   return TERRAIN_LABELS[terrain] ?? terrain;
@@ -150,13 +306,14 @@ export function terrainLabel(terrain) {
 
 export function createInitialState({ humanName = 'Gracz', mode = 'local', userId = null, customCountry = null, setup = {} } = {}) {
   const gameSetup = normalizeSetup(setup);
-  const provinces = createMap();
+  const mapPreset = MAP_PRESETS[gameSetup.public.mapId] ?? MAP_PRESETS.continental;
+  const factionSlots = BASE_FACTION_SLOTS.slice(0, mapPreset.factions);
+  const provinces = createMap(mapPreset, factionSlots);
   const wallNow = Date.now();
-  const gameNow = 0;
   const hostCountry = normalizeCountryProfile(customCountry, BOT_COUNTRY_PRESETS[0], 'eagle');
-  const botProfiles = pickBotProfiles(3, [hostCountry.name]);
+  const botProfiles = pickBotProfiles(mapPreset.factions - 1, [hostCountry.name]);
 
-  const players = FACTIONS.map((slot, index) => {
+  const players = factionSlots.map((slot, index) => {
     const country = index === 0 ? hostCountry : normalizeCountryProfile(botProfiles[index - 1], BOT_COUNTRY_PRESETS[index - 1], slot.id);
     return {
       id: slot.id,
@@ -164,6 +321,9 @@ export function createInitialState({ humanName = 'Gracz', mode = 'local', userId
       color: country.color,
       secondaryColor: country.secondaryColor,
       ideology: country.ideology,
+      government: country.government,
+      doctrine: country.doctrine,
+      trait: country.trait,
       flag: country.flag,
       type: index === 0 ? 'human' : 'bot',
       controller: index === 0 ? userId : null,
@@ -186,14 +346,18 @@ export function createInitialState({ humanName = 'Gracz', mode = 'local', userId
   }
 
   const units = [];
-  const capitals = { eagle: 'p0', union: 'p4', nomads: 'p15', crown: 'p19' };
-  for (const faction of FACTIONS) {
-    units.push(createUnit('infantry', faction.id, capitals[faction.id], gameNow));
-    units.push(createUnit(faction.id === 'crown' ? 'artillery' : 'infantry', faction.id, capitals[faction.id], gameNow));
+  for (const player of players) {
+    const capital = provinces.find(p => p.owner === player.id && p.capital) ?? provinces.find(p => p.owner === player.id);
+    if (!capital) continue;
+    units.push(createUnit('infantry', player.id, capital.id, 0));
+    units.push(createUnit(player.id === 'eagle' ? 'artillery' : 'infantry', player.id, capital.id, 0));
+    if (player.id === 'eagle' && mapPreset.factions >= 6) {
+      units.push(createUnit('infantry', player.id, capital.id, 0));
+    }
   }
 
   return {
-    schema: 4,
+    schema: 5,
     mode,
     version: 0,
     rng: 174921,
@@ -201,6 +365,7 @@ export function createInitialState({ humanName = 'Gracz', mode = 'local', userId
     gameTimeMs: 0,
     hostUserId: mode === 'multiplayer' ? userId : null,
     setup: gameSetup.public,
+    mapMeta: { width: mapPreset.width, height: mapPreset.height, rows: mapPreset.rows, cols: mapPreset.cols, id: mapPreset.id, label: mapPreset.label },
     realtime: {
       paused: false,
       lastWallAt: wallNow,
@@ -210,74 +375,122 @@ export function createInitialState({ humanName = 'Gracz', mode = 'local', userId
       economyEveryMs: gameSetup.economyEveryMs,
       aiEveryMs: gameSetup.aiEveryMs
     },
-    mapMeta: { width: 1180, height: 760, rows: 6, cols: 8 },
     provinces,
     units,
     players,
     selectedProvinceId: null,
     selectedUnitId: null,
-    log: ['Rozpoczęto kampanię real-time. Rozbuduj przemysł, zbierz armię i przejmij stolice przeciwników.']
+    log: [`Rozpoczęto kampanię na mapie ${mapPreset.label}. Normalny balans jest teraz łagodniejszy: puste pola są łatwe, boty wolniejsze, a gracz ma więcej czasu na decyzje.`]
   };
 }
 
-function createMap() {
+function createMap(preset, factionSlots) {
   const provinces = [];
-  const rows = 6;
-  const cols = 8;
-  const width = 1180;
-  const height = 760;
+  const capitals = capitalPositions(preset, factionSlots.length);
+  const centers = capitals.map((pos, i) => ({ ...pos, owner: factionSlots[i].id }));
 
-  for (let r = 0; r < rows; r += 1) {
-    for (let c = 0; c < cols; c += 1) {
-      const id = `p${r * cols + c}`;
-      const owner = r < 3 ? (c < 4 ? 'eagle' : 'union') : (c < 4 ? 'nomads' : 'crown');
-      const terrain = TERRAINS[(r * 7 + c * 3 + (r === 2 || r === 3 ? 1 : 0)) % TERRAINS.length];
-      const capital = (id === 'p0' || id === 'p7' || id === 'p40' || id === 'p47');
-
+  for (let r = 0; r < preset.rows; r += 1) {
+    for (let c = 0; c < preset.cols; c += 1) {
+      const id = `p${r * preset.cols + c}`;
+      const capitalIndex = capitals.findIndex(pos => pos.row === r && pos.col === c);
+      const terrain = terrainFor(r, c, preset, capitalIndex >= 0);
+      const owner = capitalIndex >= 0
+        ? factionSlots[capitalIndex].id
+        : nearestCenterOwner(r, c, centers);
       provinces.push({
         id,
-        name: NAMES[r * cols + c] ?? `Prowincja ${r + 1}-${c + 1}`,
+        name: NAME_POOL[(r * preset.cols + c) % NAME_POOL.length] ?? `Prowincja ${r + 1}-${c + 1}`,
         row: r,
         col: c,
-        x: 78 + c * 138 + (r % 2) * 54,
-        y: 76 + r * 108,
+        x: preset.x0 + c * preset.xStep + (r % 2) * preset.oddOffset,
+        y: preset.y0 + r * preset.yStep,
         owner,
         terrain,
-        capital,
-        resources: provinceResources(terrain, capital),
+        capital: capitalIndex >= 0,
+        devastation: 0,
+        resources: provinceResources(terrain, capitalIndex >= 0),
         buildings: {
-          industry: capital ? 2 : terrain === 'city' ? 1 : 0,
-          fort: capital ? 1 : 0,
+          industry: capitalIndex >= 0 ? 2 : terrain === 'city' ? 1 : 0,
+          fort: capitalIndex >= 0 ? 1 : 0,
           airbase: 0
         }
       });
     }
   }
 
-  // Kilka strategicznych regionów neutralizuje czysty podział na ćwiartki:
-  // mapa dalej jest prosta, ale fronty są bardziej poszarpane i ciekawsze.
-  const overrides = {
-    p12: 'eagle', p19: 'union', p20: 'nomads', p27: 'crown',
-    p28: 'crown', p35: 'nomads'
-  };
-  for (const [provinceId, owner] of Object.entries(overrides)) {
-    const province = provinces.find(p => p.id === provinceId);
-    if (province) province.owner = owner;
-  }
-
+  softenBorders(provinces, preset, factionSlots);
   for (const province of provinces) {
     province.neighbors = findNeighbors(province, provinces).map(p => p.id);
   }
   return provinces;
 }
 
+function capitalPositions(preset, count) {
+  const lastR = preset.rows - 1;
+  const lastC = preset.cols - 1;
+  const midR = Math.floor(lastR / 2);
+  const midC = Math.floor(lastC / 2);
+  const positions = [
+    { row: 0, col: 0 },
+    { row: 0, col: lastC },
+    { row: lastR, col: 0 },
+    { row: lastR, col: lastC },
+    { row: midR, col: 0 },
+    { row: midR, col: lastC },
+    { row: 0, col: midC },
+    { row: lastR, col: midC }
+  ];
+  return positions.slice(0, count);
+}
+
+function nearestCenterOwner(row, col, centers) {
+  let best = centers[0];
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const center of centers) {
+    const dRow = row - center.row;
+    const dCol = col - center.col;
+    const dist = dRow * dRow + dCol * dCol * 1.2;
+    if (dist < bestDist) {
+      best = center;
+      bestDist = dist;
+    }
+  }
+  return best.owner;
+}
+
+function softenBorders(provinces, preset, slots) {
+  if (slots.length < 5) return;
+  const byRC = (r, c) => provinces.find(p => p.row === r && p.col === c);
+  const flips = [
+    [1, Math.floor(preset.cols / 2) - 1, slots[1]?.id],
+    [2, Math.floor(preset.cols / 2), slots[0]?.id],
+    [preset.rows - 2, Math.floor(preset.cols / 2) - 1, slots[3]?.id],
+    [preset.rows - 3, Math.floor(preset.cols / 2), slots[2]?.id],
+    [Math.floor(preset.rows / 2), 1, slots[4]?.id],
+    [Math.floor(preset.rows / 2), preset.cols - 2, slots[5]?.id ?? slots[1]?.id]
+  ];
+  for (const [r, c, owner] of flips) {
+    const p = byRC(r, c);
+    if (p && owner) p.owner = owner;
+  }
+}
+
+function terrainFor(r, c, preset, capital) {
+  if (capital) return 'city';
+  if ((r + c * 2) % 11 === 0) return 'city';
+  if ((r * 3 + c) % 7 === 0) return 'hills';
+  if ((r * 5 + c * 2) % 9 === 0) return 'marsh';
+  if ((r + c) % 4 === 0) return 'forest';
+  return 'plains';
+}
+
 function provinceResources(terrain, capital) {
-  const base = { money: 22, manpower: 18, steel: 8, oil: 4 };
-  if (capital) return { money: 55, manpower: 40, steel: 24, oil: 10 };
-  if (terrain === 'city') return { money: 42, manpower: 30, steel: 16, oil: 6 };
-  if (terrain === 'hills') return { money: 20, manpower: 13, steel: 25, oil: 5 };
-  if (terrain === 'forest') return { money: 18, manpower: 24, steel: 10, oil: 4 };
-  if (terrain === 'marsh') return { money: 14, manpower: 12, steel: 8, oil: 18 };
+  const base = { money: 24, manpower: 20, steel: 9, oil: 5 };
+  if (capital) return { money: 62, manpower: 46, steel: 26, oil: 12 };
+  if (terrain === 'city') return { money: 46, manpower: 32, steel: 16, oil: 6 };
+  if (terrain === 'hills') return { money: 20, manpower: 14, steel: 28, oil: 5 };
+  if (terrain === 'forest') return { money: 18, manpower: 26, steel: 11, oil: 4 };
+  if (terrain === 'marsh') return { money: 15, manpower: 12, steel: 8, oil: 20 };
   return base;
 }
 
@@ -305,9 +518,19 @@ export function createUnit(type, owner, location, now = 0) {
 
 export function migrateState(state) {
   if (!state) return state;
-  state.schema = 4;
+  state.schema = 5;
   state.day = state.day ?? state.turn ?? 1;
   state.gameTimeMs = state.gameTimeMs ?? Math.max(0, ((state.turn ?? 1) - 1) * REALTIME_DEFAULTS.dayMs);
+  state.setup = { ...SETUP_DEFAULTS, ...(state.setup ?? {}) };
+  state.mapMeta = {
+    width: 1180,
+    height: 760,
+    rows: 6,
+    cols: 8,
+    id: state.setup.mapId ?? 'continental',
+    label: MAP_PRESETS[state.setup.mapId]?.label ?? 'Mapa',
+    ...(state.mapMeta ?? {})
+  };
   state.realtime = {
     paused: false,
     lastWallAt: Date.now(),
@@ -318,17 +541,11 @@ export function migrateState(state) {
     aiEveryMs: REALTIME_DEFAULTS.aiEveryMs,
     ...(state.realtime ?? {})
   };
-  state.mapMeta = {
-    width: 1180,
-    height: 760,
-    rows: 6,
-    cols: 8,
-    ...(state.mapMeta ?? {})
-  };
   if (Array.isArray(state.provinces)) {
     for (const province of state.provinces) {
       province.devastation = clampNumber(province.devastation ?? 0, 0, 100);
       province.buildings = { industry: 0, fort: 0, airbase: 0, ...(province.buildings ?? {}) };
+      province.resources = { money: 20, manpower: 15, steel: 6, oil: 3, ...(province.resources ?? {}) };
     }
   }
   if (!Array.isArray(state.players)) state.players = [];
@@ -345,6 +562,9 @@ export function migrateState(state) {
     player.color = player.color || '#6c7a9c';
     player.secondaryColor = player.secondaryColor || '#e8edf8';
     player.ideology = IDEOLOGIES[player.ideology] ? player.ideology : DEFAULT_CUSTOM_COUNTRY.ideology;
+    player.government = GOVERNMENTS[player.government] ? player.government : DEFAULT_CUSTOM_COUNTRY.government;
+    player.doctrine = DOCTRINES[player.doctrine] ? player.doctrine : DEFAULT_CUSTOM_COUNTRY.doctrine;
+    player.trait = TRAITS[player.trait] ? player.trait : DEFAULT_CUSTOM_COUNTRY.trait;
     player.flag = normalizeFlag(player.flag, player.color, player.secondaryColor);
     if (!player.name) player.name = player.nickname || 'Państwo';
   }
@@ -360,7 +580,6 @@ export function migrateState(state) {
 
 export function currentPlayer(state) {
   migrateState(state);
-  if (Number.isInteger(state.currentPlayerIndex) && state.players[state.currentPlayerIndex]) return state.players[state.currentPlayerIndex];
   return state.players.find(p => p.type === 'human' && !p.eliminated) ?? state.players.find(p => p.type !== 'open' && !p.eliminated) ?? state.players[0];
 }
 
@@ -391,7 +610,7 @@ export function enemyUnitsAt(state, provinceId, owner) {
 }
 
 export function canAfford(player, cost) {
-  return Object.entries(cost).every(([key, value]) => (player.resources[key] ?? 0) >= value);
+  return Object.entries(cost).every(([key, value]) => (player?.resources?.[key] ?? 0) >= value);
 }
 
 function pay(player, cost) {
@@ -399,7 +618,7 @@ function pay(player, cost) {
 }
 
 export function formatCost(cost) {
-  return Object.entries(cost)
+  return Object.entries(cost ?? {})
     .filter(([, value]) => value > 0)
     .map(([key, value]) => `${resourceIcon(key)} ${Math.round(value)}`)
     .join(' · ');
@@ -412,7 +631,7 @@ export function resourceIcon(key) {
 export function provinceIncome(province) {
   const industry = province.buildings.industry ?? 0;
   const devastation = clampNumber(province.devastation ?? 0, 0, 100);
-  const economyFactor = Math.max(0.45, 1 - devastation / 140);
+  const economyFactor = Math.max(0.55, 1 - devastation / 160);
   return {
     money: Math.round((province.resources.money + industry * 18 + (province.capital ? 18 : 0)) * economyFactor),
     manpower: Math.round((province.resources.manpower + industry * 4) * economyFactor),
@@ -438,22 +657,29 @@ export function incomeForPlayer(state, playerId) {
 export function unitCostForPlayer(player, unitType) {
   const def = UNIT_TYPES[unitType];
   if (!def) return null;
-  const ideology = ideologyOf(player);
-  const factor = ideology.unitDiscounts[unitType] ?? 1;
+  const factor = (IDEOLOGIES[player?.ideology]?.unitDiscounts?.[unitType] ?? 1)
+    * (GOVERNMENTS[player?.government]?.unitDiscounts?.[unitType] ?? 1)
+    * (TRAITS[player?.trait]?.unitDiscounts?.[unitType] ?? 1)
+    * (DOCTRINES[player?.doctrine]?.unitCostMult ?? 1)
+    * (TRAITS[player?.trait]?.unitCostMult ?? 1);
   return scaleCost(def.cost, factor);
 }
 
 export function buildingCostForPlayer(player, buildingType) {
   const def = BUILDINGS[buildingType];
   if (!def) return null;
-  const ideology = ideologyOf(player);
-  const factor = ideology.buildingDiscounts[buildingType] ?? 1;
+  const factor = (IDEOLOGIES[player?.ideology]?.buildingDiscounts?.[buildingType] ?? 1)
+    * (GOVERNMENTS[player?.government]?.buildingDiscounts?.[buildingType] ?? 1)
+    * (TRAITS[player?.trait]?.buildingDiscounts?.[buildingType] ?? 1);
   return scaleCost(def.cost, factor);
 }
 
 export function ideologySummary(player) {
-  const ideology = ideologyOf(player);
-  return `${ideology.label}: ${ideology.description}`;
+  const ideology = IDEOLOGIES[player?.ideology] ?? IDEOLOGIES[DEFAULT_CUSTOM_COUNTRY.ideology];
+  const government = GOVERNMENTS[player?.government] ?? GOVERNMENTS[DEFAULT_CUSTOM_COUNTRY.government];
+  const doctrine = DOCTRINES[player?.doctrine] ?? DOCTRINES[DEFAULT_CUSTOM_COUNTRY.doctrine];
+  const trait = TRAITS[player?.trait] ?? TRAITS[DEFAULT_CUSTOM_COUNTRY.trait];
+  return `${ideology.label} · ${government.label} · ${doctrine.label} · ${trait.label}`;
 }
 
 export function buildBuilding(state, provinceId, buildingType, actorPlayerId = null) {
@@ -475,7 +701,6 @@ export function buildBuilding(state, provinceId, buildingType, actorPlayerId = n
   return ok();
 }
 
-
 export function repairProvince(state, provinceId, actorPlayerId = null) {
   migrateState(state);
   const player = getActionPlayer(state, actorPlayerId);
@@ -485,15 +710,16 @@ export function repairProvince(state, provinceId, actorPlayerId = null) {
   if (province.owner !== player.id) return fail('Możesz naprawiać tylko własną prowincję.');
   const damage = clampNumber(province.devastation ?? 0, 0, 100);
   if (damage <= 0) return fail('Ta prowincja nie wymaga napraw.');
-  const cost = {
-    money: Math.max(25, Math.round(damage * 1.4)),
-    manpower: Math.max(6, Math.round(damage * 0.35)),
-    steel: Math.max(10, Math.round(damage * 0.75)),
+  const discount = (GOVERNMENTS[player.government]?.repairDiscount ?? 1) * (TRAITS[player.trait]?.repairDiscount ?? 1);
+  const cost = scaleCost({
+    money: Math.max(25, Math.round(damage * 1.25)),
+    manpower: Math.max(5, Math.round(damage * 0.3)),
+    steel: Math.max(8, Math.round(damage * 0.65)),
     oil: 0
-  };
+  }, discount);
   if (!canAfford(player, cost)) return fail(`Brakuje zasobów na naprawy: ${formatCost(cost)}.`);
   pay(player, cost);
-  province.devastation = Math.max(0, damage - 35);
+  province.devastation = Math.max(0, damage - 40);
   pushLog(state, `${player.nickname}: naprawiono zniszczenia w ${province.name} do ${province.devastation}%.`);
   mutate(state);
   return ok();
@@ -508,6 +734,7 @@ export function recruitUnit(state, provinceId, unitType, actorPlayerId = null) {
   if (!player) return fail('Nie kontrolujesz aktywnego państwa.');
   if (!province || !unitDef) return fail('Nieznana rekrutacja.');
   if (province.owner !== player.id) return fail('Rekrutacja jest możliwa tylko we własnej prowincji.');
+  if (ownUnitsAt(state, province.id, player.id).length >= 5) return fail('Limit lokalny: maksymalnie 5 twoich jednostek w jednej prowincji.');
   if (!canAfford(player, effectiveCost)) return fail(`Brakuje zasobów: ${formatCost(effectiveCost)}.`);
   pay(player, effectiveCost);
   const unit = createUnit(unitType, player.id, provinceId, state.gameTimeMs);
@@ -530,9 +757,9 @@ export function moveOrAttack(state, unitId, targetProvinceId, actorPlayerId = nu
   if (!origin.neighbors.includes(targetProvinceId)) return fail('Jednostka może poruszyć się tylko do sąsiedniej prowincji.');
 
   if (target.owner === unit.owner && enemyUnitsAt(state, targetProvinceId, unit.owner).length === 0) {
+    if (ownUnitsAt(state, targetProvinceId, unit.owner).length >= 5) return fail('W tej prowincji jest już dużo twoich wojsk.');
     unit.location = targetProvinceId;
     unit.availableAt = state.gameTimeMs + effectiveUnitCooldown(player, unit.type);
-    unit.acted = false;
     pushLog(state, `${UNIT_TYPES[unit.type].label} przeszła z ${origin.name} do ${target.name}.`);
     mutate(state);
     return ok();
@@ -540,7 +767,6 @@ export function moveOrAttack(state, unitId, targetProvinceId, actorPlayerId = nu
 
   const result = resolveCombat(state, unit, target);
   unit.availableAt = state.gameTimeMs + effectiveUnitCooldown(player, unit.type);
-  unit.acted = false;
   mutate(state);
   return result;
 }
@@ -553,13 +779,10 @@ function resolveCombat(state, attacker, target) {
   const fortLevel = Math.max(0, target.buildings?.fort ?? 0);
   const unitDef = UNIT_TYPES[attacker.type];
 
-  // Poprawka: pusta, nieufortyfikowana prowincja nie może zachowywać się jak
-  // niewidzialna armia. Wystarczy wejść jednostką i zapłacić małą stratę
-  // organizacyjną zależną od terenu.
   if (defenders.length === 0 && fortLevel === 0 && !target.capital) {
-    const terrainLoss = TERRAIN_ORG_LOSS[target.terrain] ?? 4;
-    attacker.hp = Math.max(20, attacker.hp - terrainLoss);
-    attacker.xp += 0.4;
+    const terrainLoss = TERRAIN_ORG_LOSS[target.terrain] ?? 3;
+    attacker.hp = Math.max(24, attacker.hp - terrainLoss);
+    attacker.xp += 0.35;
     target.owner = attacker.owner;
     target.devastation = Math.min(100, (target.devastation ?? 0) + terrainLoss);
     attacker.location = target.id;
@@ -568,41 +791,56 @@ function resolveCombat(state, attacker, target) {
     return ok();
   }
 
-  const roll = 0.82 + nextRandom(state) * 0.38;
+  const roll = 0.92 + nextRandom(state) * 0.28;
+  const doctrine = DOCTRINES[attackerPlayer?.doctrine] ?? DOCTRINES.balanced;
+  const heavy = attacker.type === 'artillery' || attacker.type === 'tank';
   const botAttack = attackerPlayer?.type === 'bot' ? (attackerPlayer.aiModifiers?.botAttack ?? 1) : 1;
-  const attackPower = unitDef.attack * ideologyOf(attackerPlayer).attackMult * botAttack * (attacker.hp / 100) * roll + attacker.xp * 2;
+  const attackPower = unitDef.attack
+    * (IDEOLOGIES[attackerPlayer?.ideology]?.attackMult ?? 1)
+    * (doctrine.attackMult ?? 1)
+    * (heavy ? (doctrine.heavyAttackMult ?? 1) : 1)
+    * (TRAITS[attackerPlayer?.trait]?.attackMult ?? 1)
+    * botAttack
+    * (attacker.hp / 100)
+    * roll
+    + attacker.xp * 2;
+
   const garrison = defenders.length > 0
     ? defenders.reduce((sum, defender) => sum + UNIT_TYPES[defender.type].defense * (defender.hp / 100), 0)
     : target.capital
-      ? 18
-      : 8 + fortLevel * 4;
+      ? 13
+      : 5 + fortLevel * 3;
   const fortPower = fortDefenseBonus(target, attacker.type);
-  const defensePower = (garrison + TERRAIN_DEF[target.terrain] + fortPower) * ideologyOf(defenderPlayer).defenseMult;
+  const defenseMult = (IDEOLOGIES[defenderPlayer?.ideology]?.defenseMult ?? 1)
+    * (DOCTRINES[defenderPlayer?.doctrine]?.defenseMult ?? 1)
+    * (TRAITS[defenderPlayer?.trait]?.defenseMult ?? 1)
+    * (target.capital ? (GOVERNMENTS[defenderPlayer?.government]?.capitalDefenseMult ?? 1) : 1);
+  const defensePower = (garrison + TERRAIN_DEF[target.terrain] + fortPower) * defenseMult;
 
   if (attackPower >= defensePower) {
     const reduction = fortDamageReduction(target);
-    const damage = Math.min(75, Math.round(defensePower * 0.42 * (1 - reduction)));
-    attacker.hp = Math.max(18, attacker.hp - damage);
+    const damage = Math.min(62, Math.round(defensePower * 0.34 * (1 - reduction)));
+    attacker.hp = Math.max(22, attacker.hp - damage);
     attacker.xp += 1;
     for (const defender of defenders) defender.hp = 0;
     state.units = state.units.filter(u => u.hp > 0);
     target.owner = attacker.owner;
-    target.devastation = Math.min(100, (target.devastation ?? 0) + Math.max(8, Math.round(damage * 0.35)));
+    target.devastation = Math.min(100, (target.devastation ?? 0) + Math.max(6, Math.round(damage * 0.3)));
     attacker.location = target.id;
     pushLog(state, `${attackerPlayer.nickname} zdobywa ${target.name} po ataku ${UNIT_TYPES[attacker.type].label}.`);
     checkEliminations(state, targetOwnerBefore);
     return ok();
   }
 
-  const damage = Math.min(90, Math.round((defensePower - attackPower) * 0.65 + 20));
+  const damage = Math.min(78, Math.round((defensePower - attackPower) * 0.48 + 14));
   attacker.hp -= damage;
+  target.devastation = Math.min(100, (target.devastation ?? 0) + Math.max(3, Math.round(damage * 0.14)));
   if (attacker.hp <= 0) {
     state.units = state.units.filter(u => u.id !== attacker.id);
     pushLog(state, `${UNIT_TYPES[attacker.type].label} została rozbita pod ${target.name}.`);
   } else {
     pushLog(state, `Atak na ${target.name} odparty. ${UNIT_TYPES[attacker.type].label} traci ${damage} siły.`);
   }
-  target.devastation = Math.min(100, (target.devastation ?? 0) + Math.max(4, Math.round(damage * 0.18)));
   return ok();
 }
 
@@ -625,6 +863,7 @@ export function fillOpenSlotsWithBots(state) {
       player.type = 'bot';
       player.controller = null;
       player.nickname = player.name;
+      player.aiModifiers = normalizeSetup(state.setup).botModifiers;
       changed = true;
     }
   }
@@ -688,7 +927,7 @@ function grantIncomeToAll(state) {
     if (player.eliminated || player.type === 'open') continue;
     const income = incomeForPlayer(state, player.id);
     for (const key of Object.keys(player.resources)) {
-      player.resources[key] += Math.round(income[key] * 0.28);
+      player.resources[key] += Math.round(income[key] * 0.34);
     }
     for (const province of state.provinces.filter(p => p.owner === player.id && (p.devastation ?? 0) > 0)) {
       const repair = 1 + Math.min(3, province.buildings?.industry ?? 0);
@@ -699,10 +938,16 @@ function grantIncomeToAll(state) {
 
 function runBotsOnce(state) {
   let changed = false;
-  for (const player of state.players.filter(p => p.type === 'bot' && !p.eliminated)) {
+  const bots = state.players.filter(p => p.type === 'bot' && !p.eliminated);
+  if (!bots.length) return false;
+  const maxBotsPerTick = Math.max(1, Math.ceil(bots.length / 2));
+  const start = state.aiCursor ?? 0;
+  for (let i = 0; i < maxBotsPerTick; i += 1) {
+    const player = bots[(start + i) % bots.length];
     const result = runAiStep(state, player.id);
     changed = changed || result.ok;
   }
+  state.aiCursor = (start + maxBotsPerTick) % bots.length;
   return changed;
 }
 
@@ -714,41 +959,51 @@ export function runAiStep(state, playerId) {
   let changed = false;
   const owned = state.provinces.filter(p => p.owner === player.id);
   if (!owned.length) return fail('Bot nie ma prowincji.');
+  const ai = {
+    botRecruitChance: 0.35,
+    botBuildChance: 0.3,
+    botMoveChance: 0.55,
+    ...(player.aiModifiers ?? {})
+  };
 
-  if (nextRandom(state) > 0.55) {
-    const affordableIndustry = owned
-      .filter(p => (p.buildings.industry ?? 0) < BUILDINGS.industry.max && canAfford(player, buildingCostForPlayer(player, 'industry')))
-      .sort((a, b) => (a.buildings.industry ?? 0) - (b.buildings.industry ?? 0))[0];
-    if (affordableIndustry) {
-      buildBuilding(state, affordableIndustry.id, 'industry', player.id);
+  if (nextRandom(state) < ai.botBuildChance) {
+    const buildType = nextRandom(state) > 0.68 ? 'fort' : 'industry';
+    const affordable = owned
+      .filter(p => (p.buildings[buildType] ?? 0) < BUILDINGS[buildType].max && canAfford(player, buildingCostForPlayer(player, buildType)))
+      .sort((a, b) => (a.buildings[buildType] ?? 0) - (b.buildings[buildType] ?? 0))[0];
+    if (affordable) {
+      buildBuilding(state, affordable.id, buildType, player.id);
       changed = true;
     }
   }
 
-  const provinceForRecruitment = owned.find(p => ownUnitsAt(state, p.id, player.id).length < 3) ?? owned[0];
-  if (provinceForRecruitment && nextRandom(state) > 0.35) {
-    const unitChoice = canAfford(player, unitCostForPlayer(player, 'tank')) && nextRandom(state) > 0.55 ? 'tank' : 'infantry';
+  const provinceForRecruitment = owned.find(p => ownUnitsAt(state, p.id, player.id).length < 2) ?? owned[0];
+  if (provinceForRecruitment && nextRandom(state) < ai.botRecruitChance) {
+    const roll = nextRandom(state);
+    const unitChoice = canAfford(player, unitCostForPlayer(player, 'tank')) && roll > 0.8 ? 'tank' : canAfford(player, unitCostForPlayer(player, 'artillery')) && roll > 0.58 ? 'artillery' : 'infantry';
     if (canAfford(player, unitCostForPlayer(player, unitChoice))) {
       recruitUnit(state, provinceForRecruitment.id, unitChoice, player.id);
       changed = true;
     }
   }
 
+  if (nextRandom(state) >= ai.botMoveChance) return changed ? ok() : fail('Bot czeka.');
+
   const readyUnits = state.units.filter(u => u.owner === player.id && isUnitReady(state, u));
-  for (const unit of readyUnits.slice(0, 2)) {
+  for (const unit of readyUnits.slice(0, 1)) {
     const province = getProvince(state, unit.location);
     const enemyNeighbor = province.neighbors
       .map(id => getProvince(state, id))
       .filter(p => p.owner !== player.id)
-      .sort((a, b) => defenseEstimate(state, a, player.id) - defenseEstimate(state, b, player.id))[0];
-    if (enemyNeighbor) {
+      .sort((a, b) => provinceDefenseStrength(state, a.id, player.id) - provinceDefenseStrength(state, b.id, player.id))[0];
+    if (enemyNeighbor && provinceDefenseStrength(state, enemyNeighbor.id, player.id) < UNIT_TYPES[unit.type].attack * 1.12) {
       moveOrAttack(state, unit.id, enemyNeighbor.id, player.id);
       changed = true;
     } else {
       const frontier = province.neighbors
         .map(id => getProvince(state, id))
-        .find(p => p.neighbors.some(n => getProvince(state, n).owner !== player.id));
-      if (frontier && nextRandom(state) > 0.55) {
+        .find(p => p.owner === player.id && p.neighbors.some(n => getProvince(state, n).owner !== player.id));
+      if (frontier && nextRandom(state) > 0.6 && ownUnitsAt(state, frontier.id, player.id).length < 4) {
         moveOrAttack(state, unit.id, frontier.id, player.id);
         changed = true;
       }
@@ -768,10 +1023,6 @@ export function endTurn(state) {
   migrateState(state);
   pushLog(state, 'Ta wersja działa w czasie rzeczywistym — nie ma już ręcznych tur.');
   return ok();
-}
-
-function defenseEstimate(state, province, attackerId) {
-  return TERRAIN_DEF[province.terrain] + fortDefenseBonus(province, 'infantry') + enemyUnitsAt(state, province.id, attackerId).length * 35;
 }
 
 export function winner(state) {
@@ -816,35 +1067,29 @@ export function fortDamageReduction(province) {
   return BALANCE.fortDamageReductionByLevel[level] ?? 0;
 }
 
-function normalizeUnitCooldown(state, unit) {
-  if (!unit) return;
-  const gameTime = Number.isFinite(state.gameTimeMs) ? state.gameTimeMs : 0;
-  if (!Number.isFinite(unit.availableAt)) {
-    unit.availableAt = gameTime;
-    return;
-  }
-  if (unit.availableAt > gameTime + BALANCE.maxUnitCooldownMs) {
-    unit.availableAt = gameTime;
-  }
-  if (unit.availableAt < 0) unit.availableAt = 0;
-}
-
 export function provinceDefenseStrength(state, provinceId, attackerId = null) {
   migrateState(state);
   const province = getProvince(state, provinceId);
   if (!province) return 0;
   const owner = getPlayer(state, province.owner);
   const defenders = unitsAt(state, province.id).filter(u => !attackerId || u.owner !== attackerId);
-  const fortLevel = Math.max(0, province.buildings?.fort ?? 0);
+  const fortLevel = province.buildings?.fort ?? 0;
   const garrison = defenders.length > 0
     ? defenders.reduce((sum, defender) => sum + UNIT_TYPES[defender.type].defense * (defender.hp / 100), 0)
     : province.capital
-      ? 18
+      ? 13
       : fortLevel > 0
-        ? 8 + fortLevel * 4
+        ? 5 + fortLevel * 3
         : 0;
-  const baseTerrain = defenders.length || fortLevel || province.capital ? (TERRAIN_DEF[province.terrain] ?? 0) : 0;
-  return Math.max(0, Math.round((garrison + baseTerrain + fortDefenseBonus(province, 'infantry')) * ideologyOf(owner).defenseMult));
+  const terrain = defenders.length || fortLevel || province.capital ? (TERRAIN_DEF[province.terrain] ?? 0) : 0;
+  const fortMult = fortLevel > 0
+    ? (GOVERNMENTS[owner?.government]?.fortDefenseMult ?? 1) * (DOCTRINES[owner?.doctrine]?.fortDefenseMult ?? 1)
+    : 1;
+  const defenseMult = (IDEOLOGIES[owner?.ideology]?.defenseMult ?? 1)
+    * (DOCTRINES[owner?.doctrine]?.defenseMult ?? 1)
+    * (TRAITS[owner?.trait]?.defenseMult ?? 1)
+    * (province.capital ? (GOVERNMENTS[owner?.government]?.capitalDefenseMult ?? 1) : 1);
+  return Math.max(0, Math.round((garrison + terrain + fortDefenseBonus(province, 'infantry') * fortMult) * defenseMult));
 }
 
 export function provinceBattleStatus(state, provinceId, viewerId = null) {
@@ -858,7 +1103,7 @@ export function provinceBattleStatus(state, provinceId, viewerId = null) {
   const avgHp = allUnits.length
     ? Math.round(allUnits.reduce((sum, unit) => sum + unit.hp, 0) / allUnits.length)
     : province.capital || fortLevel > 0
-      ? Math.max(35, 55 + fortLevel * 10 - Math.round(province.devastation ?? 0) * 0.4)
+      ? Math.max(35, 58 + fortLevel * 10 - Math.round(province.devastation ?? 0) * 0.35)
       : 0;
   let kind = 'free';
   let label = 'PUSTA';
@@ -899,6 +1144,19 @@ export function mutate(state, { quiet = false } = {}) {
   if (!quiet) state.lastActionAt = state.updatedAt;
 }
 
+function normalizeUnitCooldown(state, unit) {
+  if (!unit) return;
+  const gameTime = Number.isFinite(state.gameTimeMs) ? state.gameTimeMs : 0;
+  if (!Number.isFinite(unit.availableAt)) {
+    unit.availableAt = gameTime;
+    return;
+  }
+  if (unit.availableAt > gameTime + BALANCE.maxUnitCooldownMs) {
+    unit.availableAt = gameTime;
+  }
+  if (unit.availableAt < 0) unit.availableAt = 0;
+}
+
 function getActionPlayer(state, actorPlayerId) {
   if (actorPlayerId) return getPlayer(state, actorPlayerId);
   return currentPlayer(state);
@@ -913,24 +1171,54 @@ function nextRandom(state) {
   return (state.rng % 10000) / 10000;
 }
 
-function ideologyOf(player) {
-  if (!player) return IDEOLOGIES[DEFAULT_CUSTOM_COUNTRY.ideology];
-  return IDEOLOGIES[player.ideology] ?? IDEOLOGIES[DEFAULT_CUSTOM_COUNTRY.ideology];
-}
-
 function applyIncomeBonuses(player, income) {
-  const ideology = ideologyOf(player);
   const out = { ...income };
-  for (const [key, mult] of Object.entries(ideology.incomeMult ?? {})) {
-    out[key] = Math.round((out[key] ?? 0) * mult);
+  const parts = [
+    IDEOLOGIES[player?.ideology],
+    GOVERNMENTS[player?.government],
+    TRAITS[player?.trait]
+  ];
+  for (const part of parts) {
+    for (const [key, mult] of Object.entries(part?.incomeMult ?? {})) {
+      out[key] = Math.round((out[key] ?? 0) * mult);
+    }
   }
   return out;
 }
 
 function effectiveUnitCooldown(player, unitType) {
-  const ideology = ideologyOf(player);
   const base = UNIT_TYPES[unitType]?.cooldownMs ?? 10000;
-  return Math.round(base * (ideology.cooldownMult ?? 1));
+  const factor = (IDEOLOGIES[player?.ideology]?.cooldownMult ?? 1) * (DOCTRINES[player?.doctrine]?.cooldownMult ?? 1);
+  return Math.round(base * factor);
+}
+
+function normalizeSetup(setup = {}) {
+  const mapId = MAP_PRESETS[setup.mapId] ? setup.mapId : SETUP_DEFAULTS.mapId;
+  const paceKey = SETUP_PRESETS.pace[setup.pace] ? setup.pace : SETUP_DEFAULTS.pace;
+  const resourceKey = SETUP_PRESETS.startResources[setup.startResources] ? setup.startResources : SETUP_DEFAULTS.startResources;
+  const difficultyKey = SETUP_PRESETS.difficulty[setup.difficulty] ? setup.difficulty : SETUP_DEFAULTS.difficulty;
+  const pace = SETUP_PRESETS.pace[paceKey];
+  const difficulty = SETUP_PRESETS.difficulty[difficultyKey];
+  return {
+    public: { mapId, pace: paceKey, startResources: resourceKey, difficulty: difficultyKey },
+    humanResourceFactor: SETUP_PRESETS.startResources[resourceKey],
+    botResourceFactor: SETUP_PRESETS.startResources[resourceKey] * difficulty.botResources,
+    botModifiers: {
+      botIncome: difficulty.botIncome,
+      botAttack: difficulty.botAttack,
+      botRecruitChance: difficulty.botRecruitChance,
+      botBuildChance: difficulty.botBuildChance,
+      botMoveChance: difficulty.botMoveChance
+    },
+    dayMs: pace.dayMs,
+    economyEveryMs: pace.economyEveryMs,
+    aiEveryMs: Math.max(2000, Math.round(pace.aiEveryMs * difficulty.aiEveryFactor))
+  };
+}
+
+function scaledStartResources(factor = 1) {
+  const base = { money: 620, manpower: 520, steel: 420, oil: 220 };
+  return Object.fromEntries(Object.entries(base).map(([key, value]) => [key, Math.round(value * factor)]));
 }
 
 function scaleCost(cost, factor = 1) {
@@ -946,20 +1234,24 @@ function pickBotProfiles(count, blacklist = []) {
 }
 
 function normalizeCountryProfile(profile, fallback = DEFAULT_CUSTOM_COUNTRY, slotId = 'eagle') {
-  const merged = {
-    ...DEFAULT_CUSTOM_COUNTRY,
-    ...fallback,
-    ...(profile ?? {})
-  };
+  const merged = { ...DEFAULT_CUSTOM_COUNTRY, ...fallback, ...(profile ?? {}) };
   const color = normalizeColor(merged.color, fallback.color || DEFAULT_CUSTOM_COUNTRY.color);
   const secondaryColor = normalizeColor(merged.secondaryColor, fallback.secondaryColor || DEFAULT_CUSTOM_COUNTRY.secondaryColor);
   const ideology = IDEOLOGIES[merged.ideology] ? merged.ideology : DEFAULT_CUSTOM_COUNTRY.ideology;
+  const government = GOVERNMENTS[merged.government] ? merged.government : DEFAULT_CUSTOM_COUNTRY.government;
+  const doctrine = DOCTRINES[merged.doctrine] ? merged.doctrine : DEFAULT_CUSTOM_COUNTRY.doctrine;
+  const trait = TRAITS[merged.trait] ? merged.trait : DEFAULT_CUSTOM_COUNTRY.trait;
   return {
     slotId,
     name: String(merged.name || fallback.name || 'Nowe Państwo').slice(0, 32),
     color,
     secondaryColor,
     ideology,
+    government,
+    doctrine,
+    trait,
+    flagPattern: merged.flagPattern ?? merged.flag?.pattern ?? DEFAULT_CUSTOM_COUNTRY.flagPattern,
+    emblem: merged.emblem ?? merged.flag?.emblem ?? DEFAULT_CUSTOM_COUNTRY.emblem,
     flag: normalizeFlag(merged.flag ?? merged, color, secondaryColor)
   };
 }
@@ -982,35 +1274,6 @@ function normalizeFlag(flagLike, color, secondaryColor) {
 function normalizeColor(value, fallback) {
   const text = String(value || '').trim();
   return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(text) ? text : fallback;
-}
-
-function normalizeSetup(setup = {}) {
-  const paceKey = SETUP_PRESETS.pace[setup.pace] ? setup.pace : SETUP_DEFAULTS.pace;
-  const resourceKey = SETUP_PRESETS.startResources[setup.startResources] ? setup.startResources : SETUP_DEFAULTS.startResources;
-  const difficultyKey = SETUP_PRESETS.difficulty[setup.difficulty] ? setup.difficulty : SETUP_DEFAULTS.difficulty;
-  const pace = SETUP_PRESETS.pace[paceKey];
-  const difficulty = SETUP_PRESETS.difficulty[difficultyKey];
-  return {
-    public: {
-      pace: paceKey,
-      startResources: resourceKey,
-      difficulty: difficultyKey
-    },
-    humanResourceFactor: SETUP_PRESETS.startResources[resourceKey],
-    botResourceFactor: SETUP_PRESETS.startResources[resourceKey] * difficulty.botResources,
-    botModifiers: {
-      botIncome: difficulty.botIncome,
-      botAttack: difficulty.botAttack
-    },
-    dayMs: pace.dayMs,
-    economyEveryMs: pace.economyEveryMs,
-    aiEveryMs: Math.max(1500, Math.round(pace.aiEveryMs * difficulty.aiEveryFactor))
-  };
-}
-
-function scaledStartResources(factor = 1) {
-  const base = { money: 360, manpower: 330, steel: 230, oil: 130 };
-  return Object.fromEntries(Object.entries(base).map(([key, value]) => [key, Math.round(value * factor)]));
 }
 
 function clampNumber(value, min, max) {

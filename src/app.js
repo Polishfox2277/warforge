@@ -2,7 +2,11 @@ import {
   BUILDINGS,
   BOT_COUNTRY_PRESETS,
   DEFAULT_CUSTOM_COUNTRY,
+  DOCTRINES,
+  GOVERNMENTS,
   IDEOLOGIES,
+  MAP_PRESETS,
+  TRAITS,
   UNIT_TYPES,
   advanceRealtime,
   buildBuilding,
@@ -58,11 +62,13 @@ const ui = {
   syncInfo: document.querySelector('#syncInfo'),
   multiplayerDialog: document.querySelector('#multiplayerDialog'),
   multiplayerStatus: document.querySelector('#multiplayerStatus'),
+  multiplayerMapInput: document.querySelector('#multiplayerMapInput'),
   supabaseUrlInput: document.querySelector('#supabaseUrlInput'),
   supabaseKeyInput: document.querySelector('#supabaseKeyInput'),
   nicknameInput: document.querySelector('#nicknameInput'),
   roomCodeInput: document.querySelector('#roomCodeInput'),
   setupDialog: document.querySelector('#setupDialog'),
+  setupMapInput: document.querySelector('#setupMapInput'),
   setupPaceInput: document.querySelector('#setupPaceInput'),
   setupDifficultyInput: document.querySelector('#setupDifficultyInput'),
   setupResourcesInput: document.querySelector('#setupResourcesInput'),
@@ -76,6 +82,9 @@ const ui = {
   countryColorInput: document.querySelector('#countryColorInput'),
   countrySecondaryColorInput: document.querySelector('#countrySecondaryColorInput'),
   countryIdeologyInput: document.querySelector('#countryIdeologyInput'),
+  countryGovernmentInput: document.querySelector('#countryGovernmentInput'),
+  countryDoctrineInput: document.querySelector('#countryDoctrineInput'),
+  countryTraitInput: document.querySelector('#countryTraitInput'),
   countryFlagPatternInput: document.querySelector('#countryFlagPatternInput'),
   countryEmblemInput: document.querySelector('#countryEmblemInput')
 };
@@ -141,6 +150,9 @@ function boot() {
     ui.countryColorInput,
     ui.countrySecondaryColorInput,
     ui.countryIdeologyInput,
+    ui.countryGovernmentInput,
+    ui.countryDoctrineInput,
+    ui.countryTraitInput,
     ui.countryFlagPatternInput,
     ui.countryEmblemInput
   ].forEach(el => el.addEventListener('input', refreshCountryPreview));
@@ -154,6 +166,22 @@ function populateIdeologies() {
   ui.countryIdeologyInput.innerHTML = Object.entries(IDEOLOGIES)
     .map(([id, data]) => `<option value="${id}">${data.label}</option>`)
     .join('');
+  ui.countryGovernmentInput.innerHTML = Object.entries(GOVERNMENTS)
+    .map(([id, data]) => `<option value="${id}">${data.label}</option>`)
+    .join('');
+  ui.countryDoctrineInput.innerHTML = Object.entries(DOCTRINES)
+    .map(([id, data]) => `<option value="${id}">${data.label}</option>`)
+    .join('');
+  ui.countryTraitInput.innerHTML = Object.entries(TRAITS)
+    .map(([id, data]) => `<option value="${id}">${data.label}</option>`)
+    .join('');
+  const mapOptions = Object.entries(MAP_PRESETS)
+    .map(([id, data]) => `<option value="${id}">${data.label} — ${data.factions} krajów / ${data.rows * data.cols} prowincji</option>`)
+    .join('');
+  ui.setupMapInput.innerHTML = mapOptions;
+  ui.multiplayerMapInput.innerHTML = mapOptions;
+  ui.setupMapInput.value = 'continental';
+  ui.multiplayerMapInput.value = 'continental';
 }
 
 
@@ -165,9 +193,17 @@ function openSetupDialog() {
 
 function setupConfigFromDialog() {
   return {
+    mapId: ui.setupMapInput.value,
     pace: ui.setupPaceInput.value,
     difficulty: ui.setupDifficultyInput.value,
     startResources: ui.setupResourcesInput.value
+  };
+}
+
+function multiplayerSetupConfigFromDialog() {
+  return {
+    ...setupConfigFromDialog(),
+    mapId: ui.multiplayerMapInput.value || ui.setupMapInput.value
   };
 }
 
@@ -215,7 +251,7 @@ function render() {
   if (app.view !== 'game') return;
   const controlled = controlledPlayer();
   const win = winner(app.state);
-  ui.turnInfo.textContent = win ? `Zwycięstwo: ${win.nickname}` : `Dzień ${app.state.day} · real-time`;
+  ui.turnInfo.textContent = win ? `Zwycięstwo: ${win.nickname}` : `${app.state.mapMeta?.label ?? 'Mapa'} · Dzień ${app.state.day} · real-time`;
   ui.playerInfo.textContent = controlled
     ? `Kontrolujesz: ${controlled.nickname} (${controlled.name})`
     : app.mode === 'multiplayer'
@@ -705,7 +741,7 @@ async function createRoomFromDialog() {
   try {
     const config = getDialogConfig();
     await connect(config);
-    const initialState = createInitialState({ mode: 'multiplayer', humanName: config.nickname, customCountry: app.customCountry, setup: setupConfigFromDialog() });
+    const initialState = createInitialState({ mode: 'multiplayer', humanName: config.nickname, customCountry: app.customCountry, setup: multiplayerSetupConfigFromDialog() });
     const { game, user } = await createRoom({ name: 'Warforge room', nickname: config.nickname, initialState });
     app.supabaseUser = user;
     app.supabaseGameId = game.id;
@@ -803,6 +839,9 @@ function fillCountryEditor(profile) {
   ui.countryColorInput.value = next.color;
   ui.countrySecondaryColorInput.value = next.secondaryColor;
   ui.countryIdeologyInput.value = next.ideology;
+  ui.countryGovernmentInput.value = next.government;
+  ui.countryDoctrineInput.value = next.doctrine;
+  ui.countryTraitInput.value = next.trait;
   ui.countryFlagPatternInput.value = next.flagPattern;
   ui.countryEmblemInput.value = next.emblem;
   refreshCountryPreview();
@@ -814,6 +853,9 @@ function currentEditorCountry() {
     color: ui.countryColorInput.value,
     secondaryColor: ui.countrySecondaryColorInput.value,
     ideology: ui.countryIdeologyInput.value,
+    government: ui.countryGovernmentInput.value,
+    doctrine: ui.countryDoctrineInput.value,
+    trait: ui.countryTraitInput.value,
     flagPattern: ui.countryFlagPatternInput.value,
     emblem: ui.countryEmblemInput.value
   });
@@ -822,7 +864,12 @@ function currentEditorCountry() {
 function refreshCountryPreview() {
   const profile = currentEditorCountry();
   ui.countryPreview.innerHTML = countryCardHtml(profile, 'Podgląd kraju', false);
-  ui.countryIdeologyDescription.textContent = IDEOLOGIES[profile.ideology]?.description || '';
+  ui.countryIdeologyDescription.innerHTML = [
+    IDEOLOGIES[profile.ideology]?.description,
+    GOVERNMENTS[profile.government]?.description,
+    DOCTRINES[profile.doctrine]?.description,
+    TRAITS[profile.trait]?.description
+  ].filter(Boolean).map(escapeHtml).join('<br>');
 }
 
 function saveCountryFromDialog() {
@@ -849,6 +896,7 @@ function countryCardHtml(profile, label = 'Twój kraj', compact = false) {
       <div class="eyebrow">${escapeHtml(label)}</div>
       <div class="country-title">${escapeHtml(profile.name)}</div>
       <div class="country-meta"><span class="color-dot" style="background:${profile.color}"></span> Kolor mapy · ${escapeHtml(IDEOLOGIES[profile.ideology]?.label ?? profile.ideology)}</div>
+      <div class="country-meta">${escapeHtml(GOVERNMENTS[profile.government]?.label ?? profile.government)} · ${escapeHtml(DOCTRINES[profile.doctrine]?.label ?? profile.doctrine)} · ${escapeHtml(TRAITS[profile.trait]?.label ?? profile.trait)}</div>
       <div class="country-meta">${escapeHtml(IDEOLOGIES[profile.ideology]?.description ?? '')}</div>
     </div>
   </article>`;
@@ -859,7 +907,7 @@ function countryMiniCardHtml(profile) {
     <div class="country-flag-mini">${flagSvgMarkup(profile.flag, 72, 44)}</div>
     <div>
       <div><strong>${escapeHtml(profile.name)}</strong></div>
-      <div class="muted">${escapeHtml(IDEOLOGIES[profile.ideology]?.label ?? profile.ideology)}</div>
+      <div class="muted">${escapeHtml(IDEOLOGIES[profile.ideology]?.label ?? profile.ideology)} · ${escapeHtml(DOCTRINES[profile.doctrine]?.label ?? profile.doctrine)}</div>
     </div>
   </article>`;
 }
@@ -923,6 +971,9 @@ function normalizeCountryProfile(profile) {
   const color = normalizeColor(profile?.color, DEFAULT_CUSTOM_COUNTRY.color);
   const secondaryColor = normalizeColor(profile?.secondaryColor, DEFAULT_CUSTOM_COUNTRY.secondaryColor);
   const ideology = IDEOLOGIES[profile?.ideology] ? profile.ideology : DEFAULT_CUSTOM_COUNTRY.ideology;
+  const government = GOVERNMENTS[profile?.government] ? profile.government : DEFAULT_CUSTOM_COUNTRY.government;
+  const doctrine = DOCTRINES[profile?.doctrine] ? profile.doctrine : DEFAULT_CUSTOM_COUNTRY.doctrine;
+  const trait = TRAITS[profile?.trait] ? profile.trait : DEFAULT_CUSTOM_COUNTRY.trait;
   const flagPattern = ['horizontal', 'vertical', 'cross', 'diagonal'].includes(profile?.flagPattern) ? profile.flagPattern : DEFAULT_CUSTOM_COUNTRY.flagPattern;
   const emblem = ['star', 'gear', 'sun', 'anchor', 'crown', 'hammer', 'eagle', 'none'].includes(profile?.emblem) ? profile.emblem : DEFAULT_CUSTOM_COUNTRY.emblem;
   return {
@@ -930,6 +981,9 @@ function normalizeCountryProfile(profile) {
     color,
     secondaryColor,
     ideology,
+    government,
+    doctrine,
+    trait,
     flagPattern,
     emblem,
     flag: {
