@@ -63,16 +63,28 @@ export async function createRoom({ name, nickname, initialState }) {
   return { game, user };
 }
 
-export async function joinRoom({ code, nickname }) {
+export async function joinRoom({ code, nickname, countryProfile }) {
   const sb = client();
   const user = await ensureAnonymousSession(nickname);
   const normalized = code.trim().toUpperCase();
   if (!normalized) throw new Error('Wpisz kod pokoju.');
 
-  const { data: game, error } = await sb.rpc('join_game_room', {
+  const payload = {
     p_code: normalized,
-    p_nickname: nickname || 'Dowódca'
-  });
+    p_nickname: nickname || 'Dowódca',
+    p_country_name: countryProfile?.name || 'Nowe Państwo',
+    p_color: countryProfile?.color || '#7b5cff',
+    p_secondary_color: countryProfile?.secondaryColor || '#f2b84b',
+    p_ideology: countryProfile?.ideology || 'industrialist',
+    p_flag: countryProfile?.flag || {
+      pattern: countryProfile?.flagPattern || 'horizontal',
+      emblem: countryProfile?.emblem || 'star',
+      primary: countryProfile?.color || '#7b5cff',
+      secondary: countryProfile?.secondaryColor || '#f2b84b'
+    }
+  };
+
+  const { data: game, error } = await sb.rpc('join_game_room', payload);
   if (error) throw error;
 
   const faction = game.state?.players?.find(p => p.controller === user.id);

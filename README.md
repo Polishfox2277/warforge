@@ -1,22 +1,39 @@
-# Warforge Provinces — MVP real-time
+# Warforge Provinces — custom countries update
 
 Statyczna gra strategiczna inspirowana Call of War / Hearts of Iron, przygotowana pod GitHub Pages + Supabase Free.
 
-## Co zmieniono w tej wersji
+## Co dodano w tej wersji
 
-- Dodano hub/menu główne z opcjami: Zacznij grę solo, Multiplayer, Wczytaj zapis i Jak grać.
-- Gra działa w czasie rzeczywistym: nie ma ręcznych tur.
-- Zasoby są generowane co kilka sekund.
-- Jednostki mają cooldown po ruchu lub ataku.
-- Boty wykonują decyzje automatycznie.
-- Multiplayer przypisuje dołączającego gracza do pierwszego wolnego państwa.
-- Przypisanie kraju odbywa się atomowo w Supabase przez RPC `join_game_room`, więc dwóch graczy nie powinno dostać tego samego państwa.
-- Host multiplayera symuluje świat real-time i zapisuje stan w Supabase.
+- Kreator własnego kraju w menu głównym.
+- Gracz może ustawić:
+  - nazwę kraju,
+  - kolor na mapie,
+  - kolor dodatkowy,
+  - ideologię z gameplayowymi buffami,
+  - wzór flagi,
+  - emblemat flagi.
+- Konfiguracja kraju jest zapisywana w `localStorage`.
+- W singleplayerze własny kraj staje się państwem gracza.
+- W multiplayerze host tworzy pokój własnym krajem, a gracz dołączający nadpisuje pierwszy wolny slot swoim krajem zapisanym lokalnie.
+- Kraje botów są losowane z gotowej puli presetów.
+- Zachowano wcześniejsze poprawki:
+  - real-time,
+  - naprawa wiecznego odpoczynku jednostek,
+  - słabsze forty,
+  - nieregularne prowincje zamiast czystych hexów,
+  - hub/menu główne.
+
+## Ideologie i buffy
+
+- **Industrializm** — +15% dochodu 💰 i ⚙️, -10% kosztu przemysłu.
+- **Militaryzm** — +10% siły ataku, -10% cooldownu jednostek, -5% kosztów rekrutacji.
+- **Kolektywizm** — +18% dochodu 👥, +6% obrony, -12% kosztu piechoty.
+- **Technokracja** — +10% dochodu 🛢️, -12% kosztu artylerii i czołgów, -10% kosztu lotnisk.
 
 ## Uruchomienie lokalne
 
 ```bash
-cd warforge-mvp-configured
+cd warforge-mvp-custom-country
 python3 -m http.server 5173
 ```
 
@@ -36,11 +53,13 @@ http://localhost:5173
 
 ## Supabase
 
-W projekcie Supabase uruchom plik:
+**Ważne:** uruchom ponownie cały plik:
 
 ```text
 supabase/schema.sql
 ```
+
+Dlaczego? Ponieważ funkcja RPC `join_game_room` ma nową sygnaturę i przyjmuje dane własnego kraju gracza.
 
 Potem włącz anonimowe logowanie:
 
@@ -60,13 +79,14 @@ sb_publishable_8fKwAVcLPTj8TYWt_lHEpQ_Lp3KD1DI
 
 ## Jak testować multiplayer
 
-1. Otwórz grę w jednej przeglądarce.
+1. Otwórz grę i ustaw własny kraj w opcji **Stwórz własny kraj**.
 2. Kliknij **Multiplayer → Utwórz pokój**.
 3. Skopiuj kod pokoju.
 4. Otwórz grę w innej przeglądarce, profilu albo trybie incognito.
-5. Kliknij **Multiplayer**, wpisz kod pokoju i kliknij **Dołącz do pokoju**.
-6. Dołączający gracz powinien dostać własne państwo, np. Liga Rzeczna, Stepowe Chanaty albo Korona Południa.
+5. Tam również ustaw inny własny kraj.
+6. Kliknij **Multiplayer**, wpisz kod pokoju i kliknij **Dołącz do pokoju**.
+7. Drugi gracz powinien dostać własne państwo z własną nazwą, flagą, ideologią i kolorem.
 
-## Ważne ograniczenie MVP
+## Ograniczenie MVP
 
-Ta wersja działa na darmowym, statycznym stacku bez własnego serwera gry. Oznacza to, że host przeglądarkowy jest autorytetem symulacji świata. Do produkcyjnego, rankingowego multiplayera potrzebny byłby osobny backend albo Supabase Edge Functions walidujące rozkazy.
+Ta wersja działa na darmowym, statycznym stacku bez własnego serwera gry. Host przeglądarkowy nadal jest autorytetem symulacji świata. Do produkcyjnego multiplayera z twardą walidacją nadal przydałby się osobny backend albo Edge Functions.

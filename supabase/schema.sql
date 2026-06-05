@@ -1,4 +1,4 @@
--- Warforge Provinces — Supabase schema v2 real-time
+-- Warforge Provinces — Supabase schema v3 custom countries
 -- Uruchom w Supabase Dashboard → SQL Editor → New query → Run.
 
 create extension if not exists pgcrypto;
@@ -123,10 +123,15 @@ using (user_id = (select auth.uid()))
 with check (user_id = (select auth.uid()));
 
 -- Atomiczne dołączanie: gracz dostaje pierwsze wolne państwo w JSON state.players.
--- Dzięki FOR UPDATE dwóch graczy nie może dostać tego samego kraju.
+-- Slot zostaje nadpisany własnym krajem gracza przesłanym z localStorage.
 create or replace function public.join_game_room(
   p_code text,
-  p_nickname text default 'Dowódca'
+  p_nickname text default 'Dowódca',
+  p_country_name text default 'Nowe Państwo',
+  p_color text default '#7b5cff',
+  p_secondary_color text default '#f2b84b',
+  p_ideology text default 'industrialist',
+  p_flag jsonb default '{"pattern":"horizontal","emblem":"star","primary":"#7b5cff","secondary":"#f2b84b"}'::jsonb
 )
 returns public.games
 language plpgsql
@@ -142,6 +147,7 @@ declare
   v_player jsonb;
   v_slot_id text := null;
   v_nickname text := coalesce(nullif(trim(p_nickname), ''), 'Dowódca');
+  v_country_name text := coalesce(nullif(trim(p_country_name), ''), 'Nowe Państwo');
 begin
   if v_user is null then
     raise exception 'not authenticated';
@@ -173,7 +179,6 @@ begin
 
   v_state := v_game.state;
 
-  -- Jeżeli state już zawiera tego użytkownika, odtwórz membership.
   for v_index in 0..jsonb_array_length(v_state->'players') - 1 loop
     v_player := v_state->'players'->v_index;
     if v_player->>'controller' = v_user::text then
@@ -182,7 +187,6 @@ begin
     end if;
   end loop;
 
-  -- W przeciwnym razie znajdź pierwsze wolne państwo.
   if v_slot_id is null then
     for v_index in 0..jsonb_array_length(v_state->'players') - 1 loop
       v_player := v_state->'players'->v_index;
@@ -192,13 +196,18 @@ begin
           'type', 'human',
           'controller', v_user::text,
           'nickname', v_nickname,
+          'name', v_country_name,
+          'color', p_color,
+          'secondaryColor', p_secondary_color,
+          'ideology', p_ideology,
+          'flag', p_flag,
           'eliminated', false
         );
         v_state := jsonb_set(v_state, array['players', v_index::text], v_player, false);
         v_state := jsonb_set(
           v_state,
           '{log}',
-          jsonb_build_array(v_nickname || ' dołącza jako ' || coalesce(v_player->>'name', v_slot_id) || '.') || coalesce(v_state->'log', '[]'::jsonb),
+          jsonb_build_array(v_nickname || ' dołącza jako ' || v_country_name || '.') || coalesce(v_state->'log', '[]'::jsonb),
           true
         );
         v_state := jsonb_set(v_state, '{updatedAt}', to_jsonb(now()::text), true);
@@ -231,7 +240,7 @@ begin
 end;
 $$;
 
-grant execute on function public.join_game_room(text, text) to authenticated;
+grant execute on function public.join_game_room(text, text, text, text, text, text, jsonb) to authenticated;
 
 create or replace function public.submit_game_state(
   p_game_id uuid,
@@ -275,7 +284,6 @@ $$;
 
 grant execute on function public.submit_game_state(uuid, jsonb, integer) to authenticated;
 
--- Realtime: dodaj tabelę games do publikacji, jeśli jeszcze jej tam nie ma.
 do $$
 begin
   if not exists (

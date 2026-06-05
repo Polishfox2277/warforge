@@ -16,9 +16,11 @@
         <p class="eyebrow">GitHub Pages + Supabase free</p>
         <h1>Warforge Provinces</h1>
         <p class="hub-lead">Strategia real-time: przejmuj prowincje, rozwijaj przemysł, dowódź armią i graj solo, z botami albo z innymi graczami.</p>
+        <div id="hubCountrySummary" class="hub-country-summary"></div>
         <div class="hub-actions">
           <button id="hubStartBtn" class="btn accent wide" type="button">Zacznij grę solo</button>
           <button id="hubMultiplayerBtn" class="btn primary wide" type="button">Multiplayer</button>
+          <button id="hubCountryBtn" class="btn wide" type="button">Stwórz własny kraj</button>
           <button id="hubLoadBtn" class="btn wide" type="button">Wczytaj zapis lokalny</button>
           <button id="hubDocsBtn" class="btn wide" type="button">Jak grać</button>
         </div>
@@ -33,6 +35,7 @@
         </div>
         <nav class="topbar-actions" aria-label="Akcje gry">
           <button id="hubBtn" class="btn">Menu</button>
+          <button id="countryBtn" class="btn">Mój kraj</button>
           <button id="newLocalBtn" class="btn primary">Nowa gra solo</button>
           <button id="saveLocalBtn" class="btn">Zapisz lokalnie</button>
           <button id="loadLocalBtn" class="btn">Wczytaj</button>
@@ -84,7 +87,7 @@
     <form method="dialog" class="dialog-inner">
       <button value="cancel" class="dialog-close" aria-label="Zamknij">×</button>
       <h2>Multiplayer przez Supabase</h2>
-      <p class="muted">Host symuluje świat real-time i zapisuje stan w Supabase. Dołączający gracze są atomowo przypisywani do pierwszego wolnego państwa.</p>
+      <p class="muted">Host symuluje świat real-time i zapisuje stan w Supabase. Gracz dołączający dostaje pierwszy wolny slot i nadpisuje go własnym krajem zapisanym lokalnie.</p>
       <label>URL projektu Supabase
         <input id="supabaseUrlInput" type="url" placeholder="https://xxxxx.supabase.co" autocomplete="off" />
       </label>
@@ -94,6 +97,7 @@
       <label>Nick
         <input id="nicknameInput" type="text" placeholder="Dowódca" maxlength="28" />
       </label>
+      <div id="multiplayerCountrySummary" class="mini-country-card"></div>
       <div class="dialog-grid">
         <button id="connectSupabaseBtn" class="btn primary" type="button">Połącz</button>
         <button id="createRoomBtn" class="btn accent" type="button">Utwórz pokój</button>
@@ -106,18 +110,72 @@
     </form>
   </dialog>
 
+  <dialog id="countryDialog" class="dialog">
+    <form method="dialog" class="dialog-inner country-editor">
+      <button value="cancel" class="dialog-close" aria-label="Zamknij">×</button>
+      <h2>Tworzenie własnego kraju</h2>
+      <p class="muted">Konfiguracja zapisywana jest w localStorage i używana w solo oraz w multiplayerze przy tworzeniu lub dołączaniu do pokoju.</p>
+      <div class="country-editor-grid">
+        <div class="country-editor-fields">
+          <label>Nazwa kraju
+            <input id="countryNameInput" type="text" maxlength="32" placeholder="Federacja Zenith" />
+          </label>
+          <label>Kolor na mapie
+            <input id="countryColorInput" type="color" />
+          </label>
+          <label>Kolor dodatkowy / flagi
+            <input id="countrySecondaryColorInput" type="color" />
+          </label>
+          <label>Ideologia
+            <select id="countryIdeologyInput"></select>
+          </label>
+          <label>Układ flagi
+            <select id="countryFlagPatternInput">
+              <option value="horizontal">Poziome pasy</option>
+              <option value="vertical">Pionowe pasy</option>
+              <option value="cross">Krzyż</option>
+              <option value="diagonal">Przekątna</option>
+            </select>
+          </label>
+          <label>Emblemat
+            <select id="countryEmblemInput">
+              <option value="star">Gwiazda</option>
+              <option value="gear">Koło zębate</option>
+              <option value="sun">Słońce</option>
+              <option value="anchor">Kotwica</option>
+              <option value="crown">Korona</option>
+              <option value="hammer">Młot</option>
+              <option value="eagle">Orzeł</option>
+              <option value="none">Brak</option>
+            </select>
+          </label>
+        </div>
+        <div class="country-editor-preview">
+          <div id="countryPreview" class="country-preview"></div>
+          <div id="countryIdeologyDescription" class="muted"></div>
+        </div>
+      </div>
+      <div class="dialog-grid">
+        <button id="randomCountryBtn" class="btn" type="button">Losuj kraj</button>
+        <button id="resetCountryBtn" class="btn" type="button">Resetuj</button>
+      </div>
+      <button id="saveCountryBtn" class="btn primary wide" type="button">Zapisz kraj</button>
+      <p id="countryStatus" class="status-line"></p>
+    </form>
+  </dialog>
+
   <dialog id="howToPlayDialog" class="dialog">
     <form method="dialog" class="dialog-inner">
       <button value="cancel" class="dialog-close" aria-label="Zamknij">×</button>
       <h2>Jak grać</h2>
       <p class="muted">Nie ma tur. Zasoby wpadają co kilka sekund, jednostki mają cooldown po marszu lub ataku, a boty wykonują rozkazy automatycznie.</p>
-      <p>1. Kliknij własną prowincję, żeby budować przemysł, forty, lotniska albo rekrutować jednostki.</p>
-      <p>2. Kliknij własną jednostkę, a potem sąsiednią prowincję, żeby wykonać marsz albo atak.</p>
-      <p>3. W multiplayerze host tworzy pokój, a kolejni gracze wpisują kod pokoju. Każdy otrzymuje własne wolne państwo.</p>
+      <p>1. Najpierw wejdź do opcji <strong>Stwórz własny kraj</strong> i ustaw nazwę, flagę, ideologię oraz kolor mapy.</p>
+      <p>2. Kliknij własną prowincję, żeby budować przemysł, forty, lotniska albo rekrutować jednostki.</p>
+      <p>3. Kliknij własną jednostkę, a potem sąsiednią prowincję, żeby wykonać marsz albo atak.</p>
+      <p>4. W multiplayerze host tworzy pokój, a kolejni gracze wpisują kod pokoju. Każdy otrzymuje własne wolne państwo i jego slot zostaje podmieniony na lokalnie zapisany kraj.</p>
     </form>
   </dialog>
 
-  <template id="buttonTemplate"><button class="btn small" type="button"></button></template>
   <script type="module" src="./src/app.js"></script>
 </body>
 </html>
