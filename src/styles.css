@@ -34,11 +34,11 @@ h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: .03em; text-transform: u
 
 .game-layout { max-width: 1480px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) 390px; gap: 18px; align-items: start; }
 .map-card, .side-panel, .dialog-inner { background: linear-gradient(180deg, rgb(31 38 66 / 94%), rgb(17 20 35 / 96%)); border: 1px solid rgb(99 116 169 / 35%); box-shadow: var(--shadow); border-radius: 24px; }
-.map-card { overflow: hidden; min-height: 680px; }
+.map-card { overflow: hidden; min-height: 760px; }
 .hud-strip { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 14px 18px; border-bottom: 1px solid var(--line); background: rgb(0 0 0 / 14%); color: #dfe7ff; }
 .sync-info { color: var(--green); }
-.map-root { min-height: 630px; padding: 14px; }
-.map-root svg { width: 100%; height: auto; min-height: 610px; display: block; }
+.map-root { min-height: 710px; padding: 14px; overflow: auto; }
+.map-root svg { width: 100%; height: auto; min-height: 710px; display: block; }
 .province { cursor: pointer; transition: filter .12s ease, transform .12s ease; }
 .province:hover { filter: brightness(1.18); }
 .province.selected polygon { stroke: var(--gold); stroke-width: 6; }

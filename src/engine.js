@@ -103,10 +103,12 @@ export const REALTIME_DEFAULTS = {
 };
 
 const NAMES = [
-  'Arden', 'Ravel', 'Korn', 'Wysoki Bród', 'Falk',
-  'Dolina Solna', 'Ester', 'Nowy Port', 'Wolnigrad', 'Bursztyn',
-  'Kaldera', 'Mosty', 'Dębina', 'Rudnica', 'Srebrna',
-  'Górny Step', 'Orch', 'Pustkowie', 'Królewiec', 'Południca'
+  'Arden', 'Ravel', 'Korn', 'Srebrny Bród', 'Falk', 'Nowy Port', 'Wysoka Latarnia', 'Rivermark',
+  'Dolina Solna', 'Ester', 'Wolnigrad', 'Bursztyn', 'Księżycowe Pola', 'Żelazny Trakt', 'Mokradła Elsen', 'Brzeg Wschodni',
+  'Kaldera', 'Mosty', 'Dębina', 'Rudnica', 'Stare Opactwo', 'Srebrna', 'Północny Przesmyk', 'Zielona Marchia',
+  'Górny Step', 'Orch', 'Pustkowie', 'Bielica', 'Suchy Las', 'Równia Koronna', 'Czarne Kopce', 'Złoty Jar',
+  'Królewiec', 'Południca', 'Kamienny Brzeg', 'Wyżyna Sarn', 'Kopalnie Vald', 'Delta Miru', 'Port Słony', 'Ostatnia Straż',
+  'Czerwona Przełęcz', 'Niziny Toru', 'Wrzosowisko', 'Głębokie Jezioro', 'Lazurowy Brzeg', 'Trzy Wieże', 'Zamek Południa', 'Ogród Korony'
 ];
 
 const TERRAINS = ['plains', 'forest', 'hills', 'city', 'marsh'];
@@ -176,6 +178,7 @@ export function createInitialState({ humanName = 'Gracz', mode = 'local', userId
       economyEveryMs: REALTIME_DEFAULTS.economyEveryMs,
       aiEveryMs: REALTIME_DEFAULTS.aiEveryMs
     },
+    mapMeta: { width: 1180, height: 760, rows: 6, cols: 8 },
     provinces,
     units,
     players,
@@ -187,21 +190,25 @@ export function createInitialState({ humanName = 'Gracz', mode = 'local', userId
 
 function createMap() {
   const provinces = [];
-  const rows = 4;
-  const cols = 5;
+  const rows = 6;
+  const cols = 8;
+  const width = 1180;
+  const height = 760;
+
   for (let r = 0; r < rows; r += 1) {
     for (let c = 0; c < cols; c += 1) {
       const id = `p${r * cols + c}`;
-      const owner = r < 2 ? (c < 3 ? 'eagle' : 'union') : (c < 2 ? 'nomads' : 'crown');
-      const terrain = TERRAINS[(r * 7 + c * 3) % TERRAINS.length];
-      const capital = (id === 'p0' || id === 'p4' || id === 'p15' || id === 'p19');
+      const owner = r < 3 ? (c < 4 ? 'eagle' : 'union') : (c < 4 ? 'nomads' : 'crown');
+      const terrain = TERRAINS[(r * 7 + c * 3 + (r === 2 || r === 3 ? 1 : 0)) % TERRAINS.length];
+      const capital = (id === 'p0' || id === 'p7' || id === 'p40' || id === 'p47');
+
       provinces.push({
         id,
-        name: NAMES[r * cols + c],
+        name: NAMES[r * cols + c] ?? `Prowincja ${r + 1}-${c + 1}`,
         row: r,
         col: c,
-        x: 118 + c * 175 + (r % 2) * 84,
-        y: 100 + r * 132,
+        x: 78 + c * 138 + (r % 2) * 54,
+        y: 76 + r * 108,
         owner,
         terrain,
         capital,
@@ -214,6 +221,18 @@ function createMap() {
       });
     }
   }
+
+  // Kilka strategicznych regionów neutralizuje czysty podział na ćwiartki:
+  // mapa dalej jest prosta, ale fronty są bardziej poszarpane i ciekawsze.
+  const overrides = {
+    p12: 'eagle', p19: 'union', p20: 'nomads', p27: 'crown',
+    p28: 'crown', p35: 'nomads'
+  };
+  for (const [provinceId, owner] of Object.entries(overrides)) {
+    const province = provinces.find(p => p.id === provinceId);
+    if (province) province.owner = owner;
+  }
+
   for (const province of provinces) {
     province.neighbors = findNeighbors(province, provinces).map(p => p.id);
   }
@@ -266,6 +285,13 @@ export function migrateState(state) {
     economyEveryMs: REALTIME_DEFAULTS.economyEveryMs,
     aiEveryMs: REALTIME_DEFAULTS.aiEveryMs,
     ...(state.realtime ?? {})
+  };
+  state.mapMeta = {
+    width: 1180,
+    height: 760,
+    rows: 6,
+    cols: 8,
+    ...(state.mapMeta ?? {})
   };
   if (!Array.isArray(state.players)) state.players = [];
   for (const player of state.players) {
@@ -455,12 +481,30 @@ function resolveCombat(state, attacker, target) {
   const targetOwnerBefore = target.owner;
   const defenderPlayer = getPlayer(state, targetOwnerBefore);
   const defenders = enemyUnitsAt(state, target.id, attacker.owner);
+  const fortLevel = Math.max(0, target.buildings?.fort ?? 0);
   const unitDef = UNIT_TYPES[attacker.type];
+
+  // Poprawka: pusta, nieufortyfikowana prowincja nie może zachowywać się jak
+  // niewidzialna armia. Wystarczy wejść jednostką i zapłacić małą stratę
+  // organizacyjną zależną od terenu.
+  if (defenders.length === 0 && fortLevel === 0 && !target.capital) {
+    const terrainLoss = { plains: 3, forest: 5, hills: 6, city: 7, marsh: 8 }[target.terrain] ?? 4;
+    attacker.hp = Math.max(20, attacker.hp - terrainLoss);
+    attacker.xp += 0.4;
+    target.owner = attacker.owner;
+    attacker.location = target.id;
+    pushLog(state, `${attackerPlayer.nickname} zajmuje pustą prowincję ${target.name}.`);
+    checkEliminations(state, targetOwnerBefore);
+    return ok();
+  }
+
   const roll = 0.82 + nextRandom(state) * 0.38;
   const attackPower = unitDef.attack * ideologyOf(attackerPlayer).attackMult * (attacker.hp / 100) * roll + attacker.xp * 2;
   const garrison = defenders.length > 0
     ? defenders.reduce((sum, defender) => sum + UNIT_TYPES[defender.type].defense * (defender.hp / 100), 0)
-    : 24;
+    : target.capital
+      ? 18
+      : 8 + fortLevel * 4;
   const fortPower = fortDefenseBonus(target, attacker.type);
   const defensePower = (garrison + TERRAIN_DEF[target.terrain] + fortPower) * ideologyOf(defenderPlayer).defenseMult;
 

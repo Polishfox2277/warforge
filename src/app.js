@@ -205,6 +205,7 @@ function renderCountryCards() {
 
 function renderMap() {
   const targets = new Set(app.selectedUnitId ? selectableTargets(app.state, app.selectedUnitId) : []);
+  const mapMeta = app.state.mapMeta ?? { width: 1000, height: 610 };
   const lines = [];
   for (const province of app.state.provinces) {
     for (const neighborId of province.neighbors) {
@@ -248,11 +249,11 @@ function renderMap() {
     </g>`;
   }).join('');
 
-  const terrainFeatures = `<path class="river-line" d="M 85 210 C 210 190, 265 285, 405 275 S 635 225, 725 315 S 850 455, 940 430" />
-    <path class="coast-line" d="M 38 75 C 80 120, 65 185, 98 250 S 70 390, 130 520" />`;
+  const terrainFeatures = `<path class="river-line" d="M 70 175 C 210 150, 285 245, 430 240 S 665 205, 780 310 S 965 450, 1100 415" />
+    <path class="coast-line" d="M 34 65 C 88 120, 62 210, 98 285 S 70 470, 145 650" />`;
 
-  ui.mapRoot.innerHTML = `<svg viewBox="0 0 1000 610" role="img" aria-label="Mapa prowincji Warforge">
-    <rect x="0" y="0" width="1000" height="610" rx="22" fill="#11182b"></rect>
+  ui.mapRoot.innerHTML = `<svg viewBox="0 0 ${mapMeta.width} ${mapMeta.height}" role="img" aria-label="Mapa prowincji Warforge">
+    <rect x="0" y="0" width="${mapMeta.width}" height="${mapMeta.height}" rx="22" fill="#11182b"></rect>
     ${terrainFeatures}
     ${lines.join('')}
     ${provinces}
@@ -525,8 +526,8 @@ function provincePolygonPoints(province) {
   const points = angles.map((deg, index) => {
     const wave = Math.sin((seed * 12.9898 + index * 78.233)) * 43758.5453;
     const noise = wave - Math.floor(wave);
-    const rx = 70 + noise * 22;
-    const ry = 53 + ((noise * 1.7) % 1) * 20;
+    const rx = 55 + noise * 17;
+    const ry = 42 + ((noise * 1.7) % 1) * 16;
     const angle = Math.PI / 180 * deg;
     return [
       Math.round(province.x + Math.cos(angle) * rx),
