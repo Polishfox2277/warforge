@@ -15,47 +15,53 @@ export const MAP_PRESETS = {
   skirmish: {
     id: 'skirmish',
     label: 'Pogranicze',
-    description: 'Mała mapa 4 kraje / 20 prowincji. Najlepsza do szybkiego testu.',
+    description: 'Mała, organiczna mapa 4 kraje / 20 prowincji. Najlepsza do szybkiego testu.',
     rows: 4,
     cols: 5,
     factions: 4,
-    width: 1000,
-    height: 610,
-    x0: 118,
-    y0: 100,
-    xStep: 175,
-    yStep: 132,
-    oddOffset: 84
+    width: 1040,
+    height: 650,
+    x0: 126,
+    y0: 108,
+    xStep: 174,
+    yStep: 130,
+    oddOffset: 72,
+    jitterX: 34,
+    jitterY: 28
   },
   continental: {
     id: 'continental',
     label: 'Kontynent Valdoru',
-    description: 'Średnia mapa 6 krajów / 48 prowincji. Domyślna, najbardziej grywalna.',
+    description: 'Średnia organiczna mapa 6 krajów / 48 prowincji. Domyślna, najbardziej grywalna.',
     rows: 6,
     cols: 8,
     factions: 6,
-    width: 1180,
-    height: 760,
-    x0: 78,
-    y0: 76,
+    width: 1240,
+    height: 800,
+    x0: 90,
+    y0: 86,
     xStep: 138,
     yStep: 108,
-    oddOffset: 54
+    oddOffset: 48,
+    jitterX: 31,
+    jitterY: 25
   },
   grand: {
     id: 'grand',
     label: 'Wielka Wojna',
-    description: 'Duża mapa 8 krajów / 80 prowincji. Dłuższa kampania.',
+    description: 'Duża organiczna mapa 8 krajów / 80 prowincji. Dłuższa kampania.',
     rows: 8,
     cols: 10,
     factions: 8,
-    width: 1380,
-    height: 920,
-    x0: 70,
-    y0: 70,
+    width: 1440,
+    height: 960,
+    x0: 88,
+    y0: 88,
     xStep: 126,
     yStep: 98,
-    oddOffset: 48
+    oddOffset: 44,
+    jitterX: 28,
+    jitterY: 22
   }
 };
 
@@ -308,7 +314,8 @@ export function createInitialState({ humanName = 'Gracz', mode = 'local', userId
   const gameSetup = normalizeSetup(setup);
   const mapPreset = MAP_PRESETS[gameSetup.public.mapId] ?? MAP_PRESETS.continental;
   const factionSlots = BASE_FACTION_SLOTS.slice(0, mapPreset.factions);
-  const provinces = createMap(mapPreset, factionSlots);
+  const mapSeed = Number.isFinite(Number(setup?.mapSeed)) ? Number(setup.mapSeed) : Math.floor(Math.random() * 1_000_000_000);
+  const provinces = createMap(mapPreset, factionSlots, mapSeed);
   const wallNow = Date.now();
   const hostCountry = normalizeCountryProfile(customCountry, BOT_COUNTRY_PRESETS[0], 'eagle');
   const botProfiles = pickBotProfiles(mapPreset.factions - 1, [hostCountry.name]);
@@ -357,15 +364,15 @@ export function createInitialState({ humanName = 'Gracz', mode = 'local', userId
   }
 
   return {
-    schema: 5,
+    schema: 6,
     mode,
     version: 0,
     rng: 174921,
     day: 1,
     gameTimeMs: 0,
     hostUserId: mode === 'multiplayer' ? userId : null,
-    setup: gameSetup.public,
-    mapMeta: { width: mapPreset.width, height: mapPreset.height, rows: mapPreset.rows, cols: mapPreset.cols, id: mapPreset.id, label: mapPreset.label },
+    setup: { ...gameSetup.public, mapSeed },
+    mapMeta: { width: mapPreset.width, height: mapPreset.height, rows: mapPreset.rows, cols: mapPreset.cols, id: mapPreset.id, label: mapPreset.label, seed: mapSeed },
     realtime: {
       paused: false,
       lastWallAt: wallNow,
@@ -384,29 +391,39 @@ export function createInitialState({ humanName = 'Gracz', mode = 'local', userId
   };
 }
 
-function createMap(preset, factionSlots) {
+function createMap(preset, factionSlots, mapSeed = 174921) {
   const provinces = [];
   const capitals = capitalPositions(preset, factionSlots.length);
-  const centers = capitals.map((pos, i) => ({ ...pos, owner: factionSlots[i].id }));
+  const centers = capitals.map((pos, i) => ({
+    ...pos,
+    owner: factionSlots[i].id,
+    pull: 0.84 + seededRandom(mapSeed, 11, i) * 0.34
+  }));
 
   for (let r = 0; r < preset.rows; r += 1) {
     for (let c = 0; c < preset.cols; c += 1) {
-      const id = `p${r * preset.cols + c}`;
+      const index = r * preset.cols + c;
+      const id = `p${index}`;
       const capitalIndex = capitals.findIndex(pos => pos.row === r && pos.col === c);
-      const terrain = terrainFor(r, c, preset, capitalIndex >= 0);
+      const terrain = terrainFor(r, c, preset, capitalIndex >= 0, mapSeed);
       const owner = capitalIndex >= 0
         ? factionSlots[capitalIndex].id
-        : nearestCenterOwner(r, c, centers);
+        : nearestCenterOwner(r, c, centers, mapSeed);
+      const drift = organicProvinceDrift(r, c, preset, mapSeed);
+      const x = clampNumber(preset.x0 + c * preset.xStep + (r % 2) * preset.oddOffset + drift.x, 58, preset.width - 58);
+      const y = clampNumber(preset.y0 + r * preset.yStep + drift.y, 58, preset.height - 58);
       provinces.push({
         id,
-        name: NAME_POOL[(r * preset.cols + c) % NAME_POOL.length] ?? `Prowincja ${r + 1}-${c + 1}`,
+        name: NAME_POOL[(index + Math.floor(mapSeed % NAME_POOL.length)) % NAME_POOL.length] ?? `Prowincja ${r + 1}-${c + 1}`,
         row: r,
         col: c,
-        x: preset.x0 + c * preset.xStep + (r % 2) * preset.oddOffset,
-        y: preset.y0 + r * preset.yStep,
+        x: Math.round(x),
+        y: Math.round(y),
         owner,
         terrain,
         capital: capitalIndex >= 0,
+        coastline: isCoastlineProvince(r, c, preset, mapSeed),
+        shape: provinceShape(index, terrain, capitalIndex >= 0, mapSeed),
         devastation: 0,
         resources: provinceResources(terrain, capitalIndex >= 0),
         buildings: {
@@ -418,7 +435,7 @@ function createMap(preset, factionSlots) {
     }
   }
 
-  softenBorders(provinces, preset, factionSlots);
+  softenBorders(provinces, preset, factionSlots, mapSeed);
   for (const province of provinces) {
     province.neighbors = findNeighbors(province, provinces).map(p => p.id);
   }
@@ -443,13 +460,15 @@ function capitalPositions(preset, count) {
   return positions.slice(0, count);
 }
 
-function nearestCenterOwner(row, col, centers) {
+function nearestCenterOwner(row, col, centers, mapSeed = 174921) {
   let best = centers[0];
   let bestDist = Number.POSITIVE_INFINITY;
-  for (const center of centers) {
+  for (let i = 0; i < centers.length; i += 1) {
+    const center = centers[i];
     const dRow = row - center.row;
     const dCol = col - center.col;
-    const dist = dRow * dRow + dCol * dCol * 1.2;
+    const borderNoise = (seededRandom(mapSeed, row + 101, col + 211, i) - 0.5) * 1.55;
+    const dist = (dRow * dRow * 1.05 + dCol * dCol * 1.16) * (center.pull ?? 1) + borderNoise;
     if (dist < bestDist) {
       best = center;
       bestDist = dist;
@@ -458,7 +477,7 @@ function nearestCenterOwner(row, col, centers) {
   return best.owner;
 }
 
-function softenBorders(provinces, preset, slots) {
+function softenBorders(provinces, preset, slots, mapSeed = 174921) {
   if (slots.length < 5) return;
   const byRC = (r, c) => provinces.find(p => p.row === r && p.col === c);
   const flips = [
@@ -471,17 +490,68 @@ function softenBorders(provinces, preset, slots) {
   ];
   for (const [r, c, owner] of flips) {
     const p = byRC(r, c);
-    if (p && owner) p.owner = owner;
+    if (p && owner && seededRandom(mapSeed, r + 7, c + 13) > 0.26) p.owner = owner;
   }
 }
 
-function terrainFor(r, c, preset, capital) {
+function terrainFor(r, c, preset, capital, mapSeed = 174921) {
   if (capital) return 'city';
-  if ((r + c * 2) % 11 === 0) return 'city';
-  if ((r * 3 + c) % 7 === 0) return 'hills';
-  if ((r * 5 + c * 2) % 9 === 0) return 'marsh';
-  if ((r + c) % 4 === 0) return 'forest';
+  const n = seededRandom(mapSeed, r + 31, c + 47);
+  const ridge = Math.abs((r / Math.max(1, preset.rows - 1)) - (0.28 + seededRandom(mapSeed, c + 5, 91) * 0.42));
+  const riverBand = Math.abs((c / Math.max(1, preset.cols - 1)) - (0.18 + seededRandom(mapSeed, r + 9, 183) * 0.66));
+  if (n > 0.91 || ((r + c * 2 + Math.floor(mapSeed % 7)) % 13 === 0)) return 'city';
+  if (ridge < 0.12 || n < 0.13) return 'hills';
+  if (riverBand < 0.09 || (n > 0.69 && n < 0.8)) return 'marsh';
+  if (n > 0.43 && n < 0.68) return 'forest';
   return 'plains';
+}
+
+function organicProvinceDrift(r, c, preset, mapSeed) {
+  const edgeR = Math.min(r, preset.rows - 1 - r);
+  const edgeC = Math.min(c, preset.cols - 1 - c);
+  const edgeEase = Math.max(0.35, Math.min(1, Math.min(edgeR + 0.7, edgeC + 0.7) / 2.2));
+  const wobbleX = (seededRandom(mapSeed, r + 17, c + 29) - 0.5) * 2 * (preset.jitterX ?? 28) * edgeEase;
+  const wobbleY = (seededRandom(mapSeed, r + 37, c + 41) - 0.5) * 2 * (preset.jitterY ?? 22) * edgeEase;
+  const continentCurve = Math.sin((r + 1) * 1.17 + mapSeed * 0.00001) * (preset.jitterX ?? 28) * 0.28;
+  return { x: wobbleX + continentCurve, y: wobbleY };
+}
+
+function isCoastlineProvince(r, c, preset, mapSeed) {
+  const edge = r === 0 || c === 0 || r === preset.rows - 1 || c === preset.cols - 1;
+  const inlet = seededRandom(mapSeed, r + 71, c + 73) > 0.78 && (r < 2 || c < 2 || r > preset.rows - 3 || c > preset.cols - 3);
+  return edge || inlet;
+}
+
+function provinceShape(index, terrain, capital, mapSeed) {
+  const sides = capital ? 9 : 8;
+  const points = [];
+  const rotation = (seededRandom(mapSeed, index + 5, 601) - 0.5) * 0.28;
+  for (let i = 0; i < sides; i += 1) {
+    const angle = rotation + (Math.PI * 2 * i) / sides;
+    const terrainScale = terrain === 'hills' ? 1.08 : terrain === 'marsh' ? 0.94 : terrain === 'city' ? 0.98 : 1;
+    const rx = (54 + seededRandom(mapSeed, index + 17, i + 101) * 24) * terrainScale;
+    const ry = (40 + seededRandom(mapSeed, index + 23, i + 113) * 20) * (capital ? 1.08 : 1);
+    points.push([
+      Math.round(Math.cos(angle) * rx),
+      Math.round(Math.sin(angle) * ry)
+    ]);
+  }
+  return { points };
+}
+
+function seededRandom(...values) {
+  let h = 2166136261;
+  for (const value of values) {
+    const text = String(value);
+    for (let i = 0; i < text.length; i += 1) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+  }
+  h += h << 13; h ^= h >>> 7;
+  h += h << 3; h ^= h >>> 17;
+  h += h << 5;
+  return ((h >>> 0) % 1000000) / 1000000;
 }
 
 function provinceResources(terrain, capital) {
@@ -518,19 +588,23 @@ export function createUnit(type, owner, location, now = 0) {
 
 export function migrateState(state) {
   if (!state) return state;
-  state.schema = 5;
+  state.schema = 6;
   state.day = state.day ?? state.turn ?? 1;
   state.gameTimeMs = state.gameTimeMs ?? Math.max(0, ((state.turn ?? 1) - 1) * REALTIME_DEFAULTS.dayMs);
   state.setup = { ...SETUP_DEFAULTS, ...(state.setup ?? {}) };
+  const mapSeed = Number.isFinite(Number(state.setup?.mapSeed ?? state.mapMeta?.seed)) ? Number(state.setup?.mapSeed ?? state.mapMeta?.seed) : 174921;
   state.mapMeta = {
     width: 1180,
     height: 760,
     rows: 6,
     cols: 8,
-    id: state.setup.mapId ?? 'continental',
-    label: MAP_PRESETS[state.setup.mapId]?.label ?? 'Mapa',
-    ...(state.mapMeta ?? {})
+    ...(state.mapMeta ?? {}),
+    id: state.setup.mapId ?? state.mapMeta?.id ?? 'continental',
+    label: MAP_PRESETS[state.setup.mapId]?.label ?? state.mapMeta?.label ?? 'Mapa',
+    seed: mapSeed
   };
+  state.mapMeta.width = clampNumber(state.mapMeta.width, 600, 2200);
+  state.mapMeta.height = clampNumber(state.mapMeta.height, 420, 1600);
   state.realtime = {
     paused: false,
     lastWallAt: Date.now(),
@@ -546,6 +620,12 @@ export function migrateState(state) {
       province.devastation = clampNumber(province.devastation ?? 0, 0, 100);
       province.buildings = { industry: 0, fort: 0, airbase: 0, ...(province.buildings ?? {}) };
       province.resources = { money: 20, manpower: 15, steel: 6, oil: 3, ...(province.resources ?? {}) };
+      province.x = clampNumber(province.x ?? 0, 0, state.mapMeta.width);
+      province.y = clampNumber(province.y ?? 0, 0, state.mapMeta.height);
+      province.coastline = Boolean(province.coastline);
+      if (!province.shape || !Array.isArray(province.shape.points)) {
+        province.shape = provinceShape(Number.parseInt(String(province.id).slice(1), 10) || 0, province.terrain, Boolean(province.capital), state.mapMeta.seed ?? 174921);
+      }
     }
   }
   if (!Array.isArray(state.players)) state.players = [];
@@ -559,8 +639,10 @@ export function migrateState(state) {
     };
     player.eliminated = Boolean(player.eliminated);
     player.aiModifiers = player.aiModifiers ?? null;
-    player.color = player.color || '#6c7a9c';
-    player.secondaryColor = player.secondaryColor || '#e8edf8';
+    player.nickname = safeText(player.nickname || player.name || 'Dowódca', 40);
+    player.name = safeText(player.name || player.nickname || 'Państwo', 40);
+    player.color = normalizeColor(player.color, '#6c7a9c');
+    player.secondaryColor = normalizeColor(player.secondaryColor, '#e8edf8');
     player.ideology = IDEOLOGIES[player.ideology] ? player.ideology : DEFAULT_CUSTOM_COUNTRY.ideology;
     player.government = GOVERNMENTS[player.government] ? player.government : DEFAULT_CUSTOM_COUNTRY.government;
     player.doctrine = DOCTRINES[player.doctrine] ? player.doctrine : DEFAULT_CUSTOM_COUNTRY.doctrine;
@@ -902,7 +984,8 @@ export function advanceRealtime(state, { now = Date.now(), includeBots = true } 
   state.gameTimeMs += elapsedWall;
   state.day = Math.max(1, Math.floor(state.gameTimeMs / (rt.dayMs ?? REALTIME_DEFAULTS.dayMs)) + 1);
 
-  let changed = elapsedWall > 0;
+  let changed = false;
+  const timeChanged = elapsedWall > 0;
   let incomeTicks = 0;
   while (state.gameTimeMs - (rt.lastEconomyAt ?? 0) >= (rt.economyEveryMs ?? REALTIME_DEFAULTS.economyEveryMs) && incomeTicks < 6) {
     rt.lastEconomyAt = (rt.lastEconomyAt ?? 0) + (rt.economyEveryMs ?? REALTIME_DEFAULTS.economyEveryMs);
@@ -919,7 +1002,7 @@ export function advanceRealtime(state, { now = Date.now(), includeBots = true } 
   }
 
   if (changed) mutate(state, { quiet: true });
-  return ok({ changed });
+  return ok({ changed, timeChanged });
 }
 
 function grantIncomeToAll(state) {
@@ -1257,6 +1340,8 @@ function normalizeCountryProfile(profile, fallback = DEFAULT_CUSTOM_COUNTRY, slo
 }
 
 function normalizeFlag(flagLike, color, secondaryColor) {
+  const safePrimary = normalizeColor(color, DEFAULT_CUSTOM_COUNTRY.color);
+  const safeSecondary = normalizeColor(secondaryColor, DEFAULT_CUSTOM_COUNTRY.secondaryColor);
   const pattern = ['horizontal', 'vertical', 'cross', 'diagonal'].includes(flagLike?.flagPattern || flagLike?.pattern)
     ? (flagLike.flagPattern || flagLike.pattern)
     : DEFAULT_CUSTOM_COUNTRY.flagPattern;
@@ -1266,14 +1351,24 @@ function normalizeFlag(flagLike, color, secondaryColor) {
   return {
     pattern,
     emblem,
-    primary: normalizeColor(flagLike?.primary || color, color),
-    secondary: normalizeColor(flagLike?.secondary || secondaryColor, secondaryColor)
+    primary: normalizeColor(flagLike?.primary || safePrimary, safePrimary),
+    secondary: normalizeColor(flagLike?.secondary || safeSecondary, safeSecondary)
   };
 }
 
 function normalizeColor(value, fallback) {
   const text = String(value || '').trim();
-  return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(text) ? text : fallback;
+  const safeFallback = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(String(fallback || '').trim())
+    ? String(fallback).trim().toLowerCase()
+    : '#6c7a9c';
+  return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(text) ? text.toLowerCase() : safeFallback;
+}
+
+function safeText(value, maxLength = 40) {
+  return String(value ?? '')
+    .replace(/[\u0000-\u001f\u007f<>]/g, '')
+    .trim()
+    .slice(0, maxLength) || 'Państwo';
 }
 
 function clampNumber(value, min, max) {

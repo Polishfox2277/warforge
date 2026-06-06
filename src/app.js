@@ -35,7 +35,7 @@ import {
   unitsAt,
   winner
 } from './engine.js';
-import { connect, createRoom, joinRoom, loadConfig, saveConfig, submitState, subscribeGame } from './supabaseClient.js';
+import { connect, createRoom, fetchGame, joinRoom, loadConfig, saveConfig, submitState, subscribeGame } from './supabaseClient.js';
 
 const LOCAL_KEY = 'warforge_local_state_v4';
 const COUNTRY_KEY = 'warforge_custom_country_v1';
@@ -104,7 +104,10 @@ const app = {
   unsubscribe: null,
   saving: false,
   pendingPersist: false,
+  queuedRemoteRow: null,
   lastPersistAt: 0,
+  lastLocalSaveAt: 0,
+  mapDrag: { active: false, moved: false, suppressClickUntil: 0, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0 },
   toastTimer: null
 };
 
@@ -157,6 +160,7 @@ function boot() {
     ui.countryEmblemInput
   ].forEach(el => el.addEventListener('input', refreshCountryPreview));
 
+  initMapPan();
   showHub();
   render();
   window.setInterval(gameLoop, 1000);
@@ -182,6 +186,39 @@ function populateIdeologies() {
   ui.multiplayerMapInput.innerHTML = mapOptions;
   ui.setupMapInput.value = 'continental';
   ui.multiplayerMapInput.value = 'continental';
+}
+
+function initMapPan() {
+  ui.mapRoot.addEventListener('pointerdown', event => {
+    if (event.button !== 0) return;
+    app.mapDrag.active = true;
+    app.mapDrag.moved = false;
+    app.mapDrag.startX = event.clientX;
+    app.mapDrag.startY = event.clientY;
+    app.mapDrag.scrollLeft = ui.mapRoot.scrollLeft;
+    app.mapDrag.scrollTop = ui.mapRoot.scrollTop;
+    ui.mapRoot.classList.add('dragging');
+    ui.mapRoot.setPointerCapture?.(event.pointerId);
+  });
+  ui.mapRoot.addEventListener('pointermove', event => {
+    if (!app.mapDrag.active) return;
+    const dx = event.clientX - app.mapDrag.startX;
+    const dy = event.clientY - app.mapDrag.startY;
+    if (Math.abs(dx) + Math.abs(dy) > 5) app.mapDrag.moved = true;
+    ui.mapRoot.scrollLeft = app.mapDrag.scrollLeft - dx;
+    ui.mapRoot.scrollTop = app.mapDrag.scrollTop - dy;
+  });
+  const stopDrag = event => {
+    if (!app.mapDrag.active) return;
+    app.mapDrag.active = false;
+    if (app.mapDrag.moved) app.mapDrag.suppressClickUntil = Date.now() + 120;
+    ui.mapRoot.classList.remove('dragging');
+    ui.mapRoot.releasePointerCapture?.(event.pointerId);
+    window.setTimeout(() => { app.mapDrag.moved = false; }, 140);
+  };
+  ui.mapRoot.addEventListener('pointerup', stopDrag);
+  ui.mapRoot.addEventListener('pointercancel', stopDrag);
+  ui.mapRoot.addEventListener('mouseleave', stopDrag);
 }
 
 
@@ -281,11 +318,13 @@ function renderMap() {
   const controlled = controlledPlayer();
   const targets = new Set(app.orderMode && app.selectedUnitId ? selectableTargets(app.state, app.selectedUnitId) : []);
   const mapMeta = app.state.mapMeta ?? { width: 1000, height: 610 };
+  const prevScroll = { left: ui.mapRoot.scrollLeft, top: ui.mapRoot.scrollTop };
   const lines = [];
   for (const province of app.state.provinces) {
     for (const neighborId of province.neighbors) {
       if (province.id > neighborId) continue;
       const n = getProvince(app.state, neighborId);
+      if (!n) continue;
       lines.push(`<line class="adjacency-line" x1="${province.x}" y1="${province.y}" x2="${n.x}" y2="${n.y}" />`);
     }
   }
@@ -298,6 +337,8 @@ function renderMap() {
     const damageOpacity = Math.min(0.62, (status.devastation ?? 0) / 130);
     const classNames = [
       'province',
+      `terrain-${province.terrain}`,
+      province.coastline ? 'coast-province' : '',
       `status-${status.kind}`,
       app.selectedProvinceId === province.id ? 'selected' : '',
       targets.has(province.id) ? 'target' : ''
@@ -310,7 +351,8 @@ function renderMap() {
         </g>`
       : '';
     return `<g class="${classNames}" data-province-id="${province.id}">
-      <polygon points="${points}" fill="${owner?.color ?? '#687089'}" opacity="0.86"></polygon>
+      <polygon points="${points}" fill="${cssColor(owner?.color, '#687089')}" opacity="0.88"></polygon>
+      ${terrainMarkerSvg(province)}
       ${damageLines}
       <g class="province-badge" transform="translate(${province.x - 42} ${province.y - 44})">
         <rect width="84" height="18" rx="8"></rect>
@@ -328,6 +370,7 @@ function renderMap() {
 
   const unitChips = app.state.units.map(unit => {
     const province = getProvince(app.state, unit.location);
+    if (!province) return '';
     const owner = getPlayer(app.state, unit.owner);
     const sameProvinceUnits = unitsAt(app.state, unit.location);
     const offsetIndex = sameProvinceUnits.findIndex(u => u.id === unit.id);
@@ -339,7 +382,7 @@ function renderMap() {
     const ready = isUnitReady(app.state, unit);
     const hpWidth = Math.max(0, Math.min(34, unit.hp * 0.34));
     return `<g class="unit-chip ${selected} ${ready ? 'ready' : 'cooldown'}" data-unit-id="${unit.id}" transform="translate(${x} ${y})">
-      <circle r="19" fill="${owner?.color ?? '#ddd'}"></circle>
+      <circle r="19" fill="${cssColor(owner?.color, '#dddddd')}"></circle>
       <text y="1">${UNIT_TYPES[unit.type].short}</text>
       <rect class="unit-hp-bg" x="-17" y="22" width="34" height="5" rx="2.5"></rect>
       <rect class="unit-hp-fill" x="-17" y="22" width="${hpWidth}" height="5" rx="2.5"></rect>
@@ -347,20 +390,32 @@ function renderMap() {
     </g>`;
   }).join('');
 
-  const terrainFeatures = `<path class="river-line" d="M 70 175 C 210 150, 285 245, 430 240 S 665 205, 780 310 S 965 450, 1100 415" />
-    <path class="coast-line" d="M 34 65 C 88 120, 62 210, 98 285 S 70 470, 145 650" />`;
-
+  ui.mapRoot.style.setProperty('--map-width', `${mapMeta.width}px`);
+  ui.mapRoot.style.setProperty('--map-height', `${mapMeta.height}px`);
   ui.mapRoot.innerHTML = `<svg viewBox="0 0 ${mapMeta.width} ${mapMeta.height}" role="img" aria-label="Mapa prowincji Warforge">
-    <rect x="0" y="0" width="${mapMeta.width}" height="${mapMeta.height}" rx="22" fill="#11182b"></rect>
-    ${terrainFeatures}
+    <defs>
+      <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="6" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    <rect x="0" y="0" width="${mapMeta.width}" height="${mapMeta.height}" rx="22" fill="#10172a"></rect>
+    ${mapLandscapeLayers(mapMeta)}
     ${lines.join('')}
     ${provinces}
     ${unitChips}
   </svg>`;
 
-  ui.mapRoot.querySelectorAll('[data-province-id]').forEach(el => el.addEventListener('click', () => onProvinceClick(el.dataset.provinceId)));
+  ui.mapRoot.scrollLeft = prevScroll.left;
+  ui.mapRoot.scrollTop = prevScroll.top;
+  ui.mapRoot.querySelectorAll('[data-province-id]').forEach(el => el.addEventListener('click', event => {
+    if (app.mapDrag.moved || Date.now() < app.mapDrag.suppressClickUntil) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    onProvinceClick(el.dataset.provinceId);
+  }));
   ui.mapRoot.querySelectorAll('[data-unit-id]').forEach(el => el.addEventListener('click', event => {
     event.stopPropagation();
+    if (app.mapDrag.moved || Date.now() < app.mapDrag.suppressClickUntil) return;
     onUnitClick(el.dataset.unitId);
   }));
 }
@@ -586,7 +641,8 @@ function perform(action) {
   const win = winner(app.state);
   if (win) app.state.log.unshift(`${win.nickname} kontroluje mapę. Koniec kampanii!`);
   render();
-  persistIfNeeded({ force: true });
+  if (app.mode === 'local') saveLocal(true);
+  else persistIfNeeded({ force: true });
 }
 
 function gameLoop() {
@@ -594,21 +650,25 @@ function gameLoop() {
   if (app.mode === 'local') {
     const result = advanceRealtime(app.state, { includeBots: true });
     render();
-    if (result.ok && result.data.changed) saveLocal(true);
+    if (result.ok && result.data.changed) saveLocalIfNeeded();
     return;
   }
   if (app.mode === 'multiplayer' && isHostAuthority()) {
     const result = advanceRealtime(app.state, { includeBots: true });
     render();
-    if (result.ok && result.data.changed) persistIfNeeded({ throttleMs: 1800 });
+    if (result.ok && result.data.changed) persistIfNeeded({ throttleMs: 6000 });
   } else {
     render();
   }
 }
 
 async function persistIfNeeded({ force = false, throttleMs = 0 } = {}) {
-  if (app.mode !== 'multiplayer' || !app.supabaseGameId || app.saving) return;
+  if (app.mode !== 'multiplayer' || !app.supabaseGameId) return;
   const now = Date.now();
+  if (app.saving) {
+    if (force) app.pendingPersist = true;
+    return;
+  }
   if (!force && throttleMs && now - app.lastPersistAt < throttleMs) return;
   app.saving = true;
   app.lastPersistAt = now;
@@ -617,19 +677,49 @@ async function persistIfNeeded({ force = false, throttleMs = 0 } = {}) {
     const stateToSend = structuredClone(app.state);
     const row = await submitState(app.supabaseGameId, stateToSend, expected);
     if (row?.state) {
-      app.supabaseVersion = row.version;
-      app.state = migrateState(row.state);
-      app.state.roomCode = row.code ?? app.state.roomCode;
-      ui.multiplayerStatus.textContent = 'Zapisano stan w Supabase.';
+      applyRemoteGameRow(row, 'Zapisano stan w Supabase.');
     }
   } catch (error) {
-    ui.multiplayerStatus.textContent = `Błąd synchronizacji: ${error.message}`;
-    toast(`Błąd synchronizacji: ${error.message}`);
+    const message = String(error?.message ?? error);
+    if (message.includes('version conflict')) {
+      try {
+        await refreshRemoteState('Konflikt wersji — pobrano nowszy stan pokoju.');
+      } catch (refreshError) {
+        const refreshMessage = String(refreshError?.message ?? refreshError);
+        ui.multiplayerStatus.textContent = `Konflikt wersji i błąd odświeżania: ${refreshMessage}`;
+        toast(`Konflikt wersji i błąd odświeżania: ${refreshMessage}`);
+      }
+    } else {
+      ui.multiplayerStatus.textContent = `Błąd synchronizacji: ${message}`;
+      toast(`Błąd synchronizacji: ${message}`);
+    }
   } finally {
     app.saving = false;
+    if (app.queuedRemoteRow && (!app.queuedRemoteRow.version || app.queuedRemoteRow.version > app.supabaseVersion)) {
+      applyRemoteGameRow(app.queuedRemoteRow, 'Odebrano nowszy stan pokoju.');
+      app.queuedRemoteRow = null;
+    }
+    const shouldPersistAgain = app.pendingPersist;
+    app.pendingPersist = false;
     render();
+    if (shouldPersistAgain) persistIfNeeded({ force: true });
   }
 }
+
+async function refreshRemoteState(message = 'Odświeżono stan pokoju.') {
+  if (!app.supabaseGameId) return;
+  const row = await fetchGame(app.supabaseGameId);
+  if (row?.state) applyRemoteGameRow(row, message);
+}
+
+function applyRemoteGameRow(row, message = '') {
+  app.supabaseVersion = row.version ?? app.supabaseVersion;
+  const next = migrateState(row.state);
+  next.roomCode = row.code ?? next.roomCode;
+  app.state = next;
+  if (message) ui.multiplayerStatus.textContent = message;
+}
+
 
 function userCanAct() {
   if (winner(app.state)) return false;
@@ -690,9 +780,12 @@ function resourcePill(key, value) {
 }
 
 function provincePolygonPoints(province) {
+  if (Array.isArray(province.shape?.points) && province.shape.points.length >= 6) {
+    return province.shape.points.map(([dx, dy]) => [Math.round(province.x + dx), Math.round(province.y + dy)]);
+  }
   const seed = Number.parseInt(province.id.slice(1), 10) + 17;
   const angles = [-112, -70, -25, 18, 58, 104, 151, 205];
-  const points = angles.map((deg, index) => {
+  return angles.map((deg, index) => {
     const wave = Math.sin((seed * 12.9898 + index * 78.233)) * 43758.5453;
     const noise = wave - Math.floor(wave);
     const rx = 55 + noise * 17;
@@ -703,7 +796,51 @@ function provincePolygonPoints(province) {
       Math.round(province.y + Math.sin(angle) * ry)
     ];
   });
-  return points;
+}
+
+function terrainMarkerSvg(province) {
+  const markers = {
+    forest: ['M-18 12 L-6 -12 L6 12 Z', 'M-4 15 L-4 7 L4 7 L4 15 Z'],
+    hills: ['M-28 16 L-10 -10 L4 16 Z', 'M-4 16 L14 -16 L30 16 Z'],
+    marsh: ['M-26 6 C-16 -2,-8 14,2 6 S18 14,28 6', 'M-22 17 C-10 9,-1 24,10 16 S20 21,27 15'],
+    city: ['M-23 16 V-8 H-11 V16 Z', 'M-7 16 V-18 H7 V16 Z', 'M11 16 V-3 H23 V16 Z']
+  };
+  const paths = markers[province.terrain];
+  if (!paths) return '';
+  return `<g class="terrain-marker" transform="translate(${province.x} ${province.y + 3})">${paths.map(d => `<path d="${d}" />`).join('')}</g>`;
+}
+
+function mapLandscapeLayers(mapMeta) {
+  const w = mapMeta.width;
+  const h = mapMeta.height;
+  const seed = Number(mapMeta.seed ?? 174921);
+  const riverY = Math.round(h * (0.28 + pseudo(seed, 3) * 0.28));
+  const riverBend = Math.round(h * (0.10 + pseudo(seed, 5) * 0.12));
+  const coastX = Math.round(w * (0.06 + pseudo(seed, 7) * 0.08));
+  const lakeX = Math.round(w * (0.62 + pseudo(seed, 11) * 0.18));
+  const lakeY = Math.round(h * (0.22 + pseudo(seed, 13) * 0.5));
+  return `
+    <path class="coast-fill" d="M0 0 H${coastX + 40} C${coastX - 12} ${h * .16}, ${coastX + 78} ${h * .34}, ${coastX + 8} ${h * .52} S${coastX + 82} ${h * .80}, ${coastX + 24} ${h} H0 Z" />
+    <path class="coast-line" d="M${coastX} 34 C${coastX + 56} ${h * .18}, ${coastX - 18} ${h * .34}, ${coastX + 48} ${h * .48} S${coastX - 12} ${h * .75}, ${coastX + 62} ${h - 46}" />
+    <path class="river-line" d="M${Math.round(w * .12)} ${riverY} C${Math.round(w * .28)} ${riverY - riverBend}, ${Math.round(w * .38)} ${riverY + riverBend}, ${Math.round(w * .52)} ${riverY} S${Math.round(w * .74)} ${riverY - riverBend}, ${Math.round(w * .9)} ${riverY + riverBend * .45}" />
+    <ellipse class="lake-fill" cx="${lakeX}" cy="${lakeY}" rx="${Math.round(w * .055)}" ry="${Math.round(h * .038)}" />
+    <path class="mountain-shadow" d="M${Math.round(w * .22)} ${Math.round(h * .78)} C${Math.round(w * .35)} ${Math.round(h * .6)}, ${Math.round(w * .48)} ${Math.round(h * .88)}, ${Math.round(w * .63)} ${Math.round(h * .68)} S${Math.round(w * .82)} ${Math.round(h * .78)}, ${Math.round(w * .92)} ${Math.round(h * .61)}" />`;
+}
+
+function pseudo(seed, salt) {
+  const x = Math.sin(seed * 12.9898 + salt * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+function cssColor(value, fallback) {
+  return normalizeColor(value, fallback);
+}
+
+function saveLocalIfNeeded() {
+  const now = Date.now();
+  if (now - app.lastLocalSaveAt < 5000) return;
+  app.lastLocalSaveAt = now;
+  saveLocal(true);
 }
 
 function saveLocal(silent = false) {
@@ -790,11 +927,12 @@ async function joinRoomFromDialog() {
 function setupSubscription(gameId) {
   if (app.unsubscribe) app.unsubscribe();
   app.unsubscribe = subscribeGame(gameId, row => {
-    if (app.saving) return;
-    app.supabaseVersion = row.version;
-    const next = migrateState(row.state);
-    next.roomCode = row.code ?? next.roomCode;
-    app.state = next;
+    if (app.saving) {
+      app.queuedRemoteRow = row;
+      return;
+    }
+    if (row.version && row.version < app.supabaseVersion) return;
+    applyRemoteGameRow(row);
     render();
   });
 }
@@ -805,6 +943,8 @@ function disconnectMultiplayer() {
   app.supabaseGameId = null;
   app.supabaseVersion = 0;
   app.supabaseUser = null;
+  app.queuedRemoteRow = null;
+  app.pendingPersist = false;
 }
 
 function getDialogConfig() {
@@ -997,7 +1137,10 @@ function normalizeCountryProfile(profile) {
 
 function normalizeColor(value, fallback) {
   const text = String(value || '').trim();
-  return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(text) ? text : fallback;
+  const safeFallback = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(String(fallback || '').trim())
+    ? String(fallback).trim().toLowerCase()
+    : '#6c7a9c';
+  return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(text) ? text.toLowerCase() : safeFallback;
 }
 
 function toast(message) {

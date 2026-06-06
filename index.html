@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Warforge Provinces — strategiczne MVP real-time</title>
   <meta name="description" content="Gra strategiczna real-time inspirowana grand strategy, działająca na GitHub Pages + Supabase." />
-  <link rel="stylesheet" href="./src/styles.css?v=balance-v2" />
+  <link rel="stylesheet" href="./src/styles.css?v=organic-v3" />
   <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml" />
 </head>
 <body>
@@ -13,10 +13,10 @@
   <div id="app" class="app-shell">
     <section id="hub" class="hub" aria-label="Menu główne">
       <div class="hub-card">
-        <p class="eyebrow">GitHub Pages + Supabase free · BALANCE/MAPS v2</p>
+        <p class="eyebrow">GitHub Pages + Supabase free · ORGANIC MAPS v3</p>
         <h1>Warforge Provinces</h1>
         <p class="hub-lead">Strategia real-time: wybierz mapę, stwórz państwo, przejmuj prowincje, rozwijaj przemysł i graj solo, z botami albo z innymi graczami.</p>
-        <div class="version-banner">Wersja: rebalance + 3 mapy + edytor państwa 2.0</div>
+        <div class="version-banner">Wersja: organiczne mapy + drag mapy + sync fix</div>
         <div id="hubCountrySummary" class="hub-country-summary"></div>
         <div class="hub-actions">
           <button id="hubStartBtn" class="btn accent wide" type="button">Setup kampanii solo</button>
@@ -31,7 +31,7 @@
     <div id="gameScreen" hidden>
       <header class="topbar">
         <div>
-          <p class="eyebrow">Real-time strategy MVP · BALANCE/MAPS v2</p>
+          <p class="eyebrow">Real-time strategy MVP · ORGANIC MAPS v3</p>
           <h1>Warforge Provinces</h1>
         </div>
         <nav class="topbar-actions" aria-label="Akcje gry">
@@ -57,7 +57,7 @@
               <span><i class="legend-dot free"></i> puste</span>
               <span><i class="legend-dot defended"></i> bronione</span>
               <span><i class="legend-dot fortified"></i> fort/stolica</span>
-              <span><i class="legend-dot damaged"></i> zniszczenia</span>
+              <span><i class="legend-dot damaged"></i> zniszczenia</span><span>🖱️ przeciągnij mapę</span>
             </div>
           </div>
           <div id="mapRoot" class="map-root"></div>
@@ -130,7 +130,7 @@
       </div>
       <div id="setupCountrySummary" class="mini-country-card"></div>
       <button id="setupStartSoloBtn" class="btn accent wide" type="button">Rozpocznij kampanię solo</button>
-      <p class="muted">Sterowanie: klik prowincji tylko wybiera prowincję. Ruch lub atak jednostką wymaga przycisku <strong>Wydaj rozkaz</strong>.</p>
+      <p class="muted">Sterowanie: przeciągnij mapę myszką, klik prowincji tylko wybiera prowincję. Ruch lub atak jednostką wymaga przycisku <strong>Wydaj rozkaz</strong>.</p>
     </form>
   </dialog>
 
@@ -234,7 +234,7 @@
       <p class="muted">Nie ma tur. Zasoby wpadają co kilka sekund, jednostki mają cooldown po marszu lub ataku, a boty wykonują rozkazy automatycznie.</p>
       <p>1. Najpierw wejdź do opcji <strong>Stwórz własny kraj</strong> i ustaw nazwę, flagę, ideologię oraz kolor mapy.</p>
       <p>2. Kliknij własną prowincję, żeby zobaczyć szybkie akcje nad mapą: budowę i rekrutację.</p>
-      <p>3. Kliknij jednostkę, potem kliknij <strong>Wydaj rozkaz</strong>, a dopiero wtedy wybierz sąsiednią prowincję. Dzięki temu przypadkowo nie ruszysz armii przy zwykłym oglądaniu mapy.</p>
+      <p>3. Przeciągaj mapę myszką, żeby się po niej poruszać. Kliknij jednostkę, potem kliknij <strong>Wydaj rozkaz</strong>, a dopiero wtedy wybierz sąsiednią prowincję. Dzięki temu przypadkowo nie ruszysz armii przy zwykłym oglądaniu mapy.</p>
       <p>4. Oznaczenia mapy: <strong>PUSTA</strong> oznacza łatwe zajęcie, <strong>ARMIA/FORT/STOLICA</strong> oznacza obronę, a czerwony pasek i pęknięcia pokazują zniszczenia prowincji.</p>
       <p>5. W multiplayerze host tworzy pokój, a kolejni gracze wpisują kod pokoju. Każdy otrzymuje własne wolne państwo i jego slot zostaje podmieniony na lokalnie zapisany kraj.</p>
     </form>

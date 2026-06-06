@@ -37,8 +37,9 @@ h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: .03em; text-transform: u
 .map-card { overflow: hidden; min-height: 760px; }
 .hud-strip { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 14px 18px; border-bottom: 1px solid var(--line); background: rgb(0 0 0 / 14%); color: #dfe7ff; }
 .sync-info { color: var(--green); }
-.map-root { min-height: 710px; padding: 14px; overflow: auto; }
-.map-root svg { width: 100%; height: auto; min-height: 710px; display: block; }
+.map-root { min-height: 710px; padding: 14px; overflow: auto; cursor: grab; scroll-behavior: auto; touch-action: none; user-select: none; overscroll-behavior: contain; }
+.map-root.dragging { cursor: grabbing; }
+.map-root svg { width: var(--map-width, 1000px); height: var(--map-height, auto); max-width: none; min-height: 710px; display: block; }
 .province { cursor: pointer; transition: filter .12s ease, transform .12s ease; }
 .province:hover { filter: brightness(1.18); }
 .province.selected polygon { stroke: var(--gold); stroke-width: 6; }
@@ -50,9 +51,19 @@ h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: .03em; text-transform: u
 .unit-chip text { fill: #10131f; font-size: 18px; font-weight: 900; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
 .unit-chip.selected circle { stroke: var(--gold); stroke-width: 6; }
 .adjacency-line { stroke: rgb(255 255 255 / 10%); stroke-width: 1.5; pointer-events: none; stroke-dasharray: 5 9; }
-.river-line { fill: none; stroke: rgb(99 177 255 / 48%); stroke-width: 13; stroke-linecap: round; pointer-events: none; }
-.coast-line { fill: none; stroke: rgb(110 160 220 / 20%); stroke-width: 22; stroke-linecap: round; pointer-events: none; }
+.river-line { fill: none; stroke: rgb(99 177 255 / 48%); stroke-width: 13; stroke-linecap: round; pointer-events: none; filter: url(#softGlow); }
+.coast-line { fill: none; stroke: rgb(110 160 220 / 28%); stroke-width: 22; stroke-linecap: round; pointer-events: none; }
+.coast-fill { fill: rgb(42 91 142 / 18%); pointer-events: none; }
+.lake-fill { fill: rgb(74 150 210 / 28%); stroke: rgb(147 207 255 / 38%); stroke-width: 4; pointer-events: none; filter: url(#softGlow); }
+.mountain-shadow { fill: none; stroke: rgb(255 255 255 / 9%); stroke-width: 34; stroke-linecap: round; pointer-events: none; }
 .province polygon { stroke: rgb(8 12 24 / 66%); stroke-width: 3; }
+.terrain-marker { opacity: .28; pointer-events: none; }
+.terrain-marker path { fill: rgb(255 255 255 / 60%); stroke: rgb(0 0 0 / 30%); stroke-width: 2; stroke-linejoin: round; }
+.terrain-forest polygon { filter: saturate(1.15) brightness(.94); }
+.terrain-hills polygon { filter: saturate(.9) brightness(.9); }
+.terrain-marsh polygon { filter: saturate(.82) brightness(.86); }
+.terrain-city polygon { filter: saturate(1.08) brightness(1.08); }
+.coast-province polygon { stroke: rgb(134 191 255 / 40%); }
 
 .side-panel { padding: 14px; display: grid; gap: 12px; }
 .panel-block { background: rgb(9 12 23 / 44%); border: 1px solid rgb(99 116 169 / 25%); border-radius: 18px; padding: 14px; }
@@ -124,6 +135,7 @@ h2 { margin: 0 0 10px; font-size: 1rem; letter-spacing: .03em; text-transform: u
   .side-panel { grid-template-columns: 1fr; }
   .map-card { min-height: 520px; }
   .map-root { min-height: 480px; padding: 6px; }
+  .map-root svg { min-height: 520px; }
   .dialog-grid, .country-editor-grid, .country-card, .country-card.compact { grid-template-columns: 1fr; }
   .country-flag-lg { justify-content: flex-start; }
 }

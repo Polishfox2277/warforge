@@ -1,4 +1,4 @@
--- Warforge Provinces — Supabase schema v3 custom countries
+-- Warforge Provinces — Supabase schema v4 organic maps + sync/security fixes
 -- Uruchom w Supabase Dashboard → SQL Editor → New query → Run.
 
 create extension if not exists pgcrypto;
@@ -59,6 +59,56 @@ $$;
 
 grant execute on function public.is_game_member(uuid) to authenticated;
 
+
+create or replace function public.safe_short_text(p_value text, p_fallback text, p_max integer default 40)
+returns text
+language sql
+immutable
+as $$
+  select coalesce(
+    nullif(left(regexp_replace(coalesce(p_value, ''), '[[:cntrl:]<>]', '', 'g'), greatest(1, p_max)), ''),
+    p_fallback
+  );
+$$;
+
+create or replace function public.safe_hex_color(p_value text, p_fallback text default '#7b5cff')
+returns text
+language sql
+immutable
+as $$
+  select case
+    when coalesce(p_value, '') ~* '^#([0-9a-f]{3}|[0-9a-f]{6})$' then lower(p_value)
+    when coalesce(p_fallback, '') ~* '^#([0-9a-f]{3}|[0-9a-f]{6})$' then lower(p_fallback)
+    else '#7b5cff'
+  end;
+$$;
+
+create or replace function public.safe_choice(p_value text, p_allowed text[], p_fallback text)
+returns text
+language sql
+immutable
+as $$
+  select case when p_value = any(p_allowed) then p_value else p_fallback end;
+$$;
+
+create or replace function public.safe_country_flag(p_flag jsonb, p_primary text, p_secondary text)
+returns jsonb
+language sql
+immutable
+as $$
+  select jsonb_build_object(
+    'pattern', public.safe_choice(coalesce(p_flag->>'pattern', 'horizontal'), array['horizontal','vertical','cross','diagonal'], 'horizontal'),
+    'emblem', public.safe_choice(coalesce(p_flag->>'emblem', 'star'), array['star','gear','sun','anchor','crown','hammer','eagle','none'], 'star'),
+    'primary', public.safe_hex_color(coalesce(p_flag->>'primary', p_primary), p_primary),
+    'secondary', public.safe_hex_color(coalesce(p_flag->>'secondary', p_secondary), p_secondary)
+  );
+$$;
+
+grant execute on function public.safe_short_text(text, text, integer) to authenticated;
+grant execute on function public.safe_hex_color(text, text) to authenticated;
+grant execute on function public.safe_choice(text, text[], text) to authenticated;
+grant execute on function public.safe_country_flag(jsonb, text, text) to authenticated;
+
 alter table public.games enable row level security;
 alter table public.game_members enable row level security;
 
@@ -97,10 +147,6 @@ to authenticated
 using (
   user_id = (select auth.uid())
   or public.is_game_member(game_members.game_id)
-  or exists (
-    select 1 from public.games g
-    where g.id = game_members.game_id and g.status in ('lobby', 'running')
-  )
 );
 
 create policy game_members_insert_self
@@ -149,8 +195,15 @@ declare
   v_index integer;
   v_player jsonb;
   v_slot_id text := null;
-  v_nickname text := coalesce(nullif(trim(p_nickname), ''), 'Dowódca');
-  v_country_name text := coalesce(nullif(trim(p_country_name), ''), 'Nowe Państwo');
+  v_nickname text := public.safe_short_text(p_nickname, 'Dowódca', 40);
+  v_country_name text := public.safe_short_text(p_country_name, 'Nowe Państwo', 40);
+  v_color text := public.safe_hex_color(p_color, '#7b5cff');
+  v_secondary_color text := public.safe_hex_color(p_secondary_color, '#f2b84b');
+  v_ideology text := public.safe_choice(p_ideology, array['industrialist','militarist','collectivist','technocrat'], 'industrialist');
+  v_government text := public.safe_choice(p_government, array['republic','monarchy','council','directorate'], 'republic');
+  v_doctrine text := public.safe_choice(p_doctrine, array['balanced','maneuver','firepower','defense'], 'balanced');
+  v_trait text := public.safe_choice(p_trait, array['engineers','miners','oilfields','traders','patriots'], 'engineers');
+  v_flag jsonb := public.safe_country_flag(coalesce(p_flag, '{}'::jsonb), public.safe_hex_color(p_color, '#7b5cff'), public.safe_hex_color(p_secondary_color, '#f2b84b'));
 begin
   if v_user is null then
     raise exception 'not authenticated';
@@ -200,13 +253,13 @@ begin
           'controller', v_user::text,
           'nickname', v_nickname,
           'name', v_country_name,
-          'color', p_color,
-          'secondaryColor', p_secondary_color,
-          'ideology', p_ideology,
-          'government', p_government,
-          'doctrine', p_doctrine,
-          'trait', p_trait,
-          'flag', p_flag,
+          'color', v_color,
+          'secondaryColor', v_secondary_color,
+          'ideology', v_ideology,
+          'government', v_government,
+          'doctrine', v_doctrine,
+          'trait', v_trait,
+          'flag', v_flag,
           'eliminated', false
         );
         v_state := jsonb_set(v_state, array['players', v_index::text], v_player, false);
@@ -270,6 +323,10 @@ begin
     where gm.game_id = p_game_id and gm.user_id = (select auth.uid())
   ) then
     raise exception 'not a member of this game';
+  end if;
+
+  if p_state is null or jsonb_typeof(p_state) <> 'object' or octet_length(p_state::text) > 524288 then
+    raise exception 'invalid or too large game state';
   end if;
 
   update public.games

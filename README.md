@@ -1,125 +1,56 @@
-# Warforge Provinces — rebalance, maps and expanded country editor
+# Warforge Provinces — organic maps, drag map and sync fix
 
 Statyczna gra strategiczna real-time pod GitHub Pages + Supabase Free.
 
 ## Co zmieniono w tej wersji
 
-### 1. Duży rebalance gry
+### 1. Overhaul mapy
 
-Poprzednia wersja była zbyt trudna, bo boty działały szybko, zbyt często rekrutowały i atakowały, a obrona pól była za wysoka. Ta wersja jest celowo łagodniejsza.
+Mapa nie jest już sztywną regularną siatką wizualną. Każda nowa kampania dostaje seed i generuje:
 
-Najważniejsze zmiany:
+- organicznie przesunięte centra prowincji,
+- nieregularne kształty prowincji,
+- mniej prostokątne granice państw,
+- różniejsze rozmieszczenie miast, lasów, wzgórz i bagien,
+- warstwy krajobrazu: wybrzeże, rzekę, jezioro i cień górski.
 
-- większe zasoby startowe gracza,
-- mniejsze startowe zasoby botów na normalnym poziomie,
-- wolniejsze i mniej agresywne AI,
-- boty nie atakują już każdego frontu naraz,
-- puste prowincje mają realnie `PUSTA · 0`,
-- obniżona obrona terenu, garnizonów i fortów,
-- jednostki są trochę skuteczniejsze w ataku,
-- gospodarka daje trochę większy dochód na tick,
-- limity lokalnych jednostek zmniejszają spam armii w jednym polu.
+Dalej zachowana jest logika sąsiedztwa heksowego, więc balans i AI nie tracą stabilności.
 
-Aktualna filozofia balansu:
+### 2. Poruszanie się po mapie myszką
 
-```text
-Łatwy    = tryb nauki i testów
-Normalny = grywalny standard, gracz ma czas reagować
-Trudny   = boty mają lekką przewagę, ale nie powinny być absurdalne
-```
+Mapa ma teraz własny viewport. Przeciągnij ją myszką, żeby przesuwać widok. Kliknięcie prowincji nadal tylko wybiera prowincję, a ruch lub atak jednostką nadal wymaga przycisku **Wydaj rozkaz**.
 
-### 2. Trzy mapy do wyboru
+### 3. Poprawki synchronizacji Supabase
 
-W setupie gry jest wybór mapy:
+- host zapisuje stan rzadziej,
+- sam upływ czasu nie wymusza zapisu JSON-a co sekundę,
+- konflikt wersji powoduje automatyczne pobranie aktualnego stanu pokoju,
+- update z Realtime, który przyjdzie podczas zapisu, jest buforowany zamiast ignorowany,
+- lokalny zapis singleplayera jest throttlowany i akcje gracza zapisują się od razu.
 
-- **Pogranicze** — 4 kraje / 20 prowincji
-- **Kontynent Valdoru** — 6 krajów / 48 prowincji
-- **Wielka Wojna** — 8 krajów / 80 prowincji
+### 4. Poprawki bezpieczeństwa danych gracza
 
-W multiplayerze host wybiera mapę pokoju w oknie multiplayer.
+- kolory, flagi, nazwy i enumy kraju są normalizowane po stronie frontendu,
+- `migrateState()` czyści kolory i podstawowe pola stanu pobranego z Supabase,
+- SQL RPC `join_game_room()` waliduje kolory, flagę, enumy i teksty,
+- polityka `game_members_select_related` nie ujawnia już członków wszystkich aktywnych pokoi,
+- `submit_game_state()` odrzuca nieobiektowy lub zbyt duży JSON stanu.
 
-### 3. Więcej krajów
+### 5. Zachowany rebalance i edytor państwa
 
-Silnik obsługuje teraz do 8 krajów na mapie.
+Dalej są dostępne:
 
-Boty są losowane z większej puli gotowych państw. Każde ma:
-- nazwę,
-- kolor,
-- flagę,
-- ideologię,
-- ustrój,
-- doktrynę,
-- cechę narodową.
-
-### 4. Dokładniejszy edytor państwa
-
-Kreator kraju ma teraz więcej elementów:
-
-- nazwa kraju,
-- kolor mapy,
-- kolor dodatkowy,
-- ideologia,
-- ustrój,
-- doktryna wojskowa,
-- cecha narodowa,
-- układ flagi,
-- emblemat flagi.
-
-Wszystko zapisuje się w `localStorage`.
-
-### 5. Nowe warstwy buffów państwa
-
-Państwo ma teraz kilka niezależnych warstw:
-
-#### Ideologia
-Przykłady:
-- Industrializm
-- Militaryzm
-- Kolektywizm
-- Technokracja
-
-#### Ustrój
-Przykłady:
-- Republika
-- Monarchia
-- Rada Ludowa
-- Dyrektoriat
-
-#### Doktryna wojskowa
-Przykłady:
-- Zrównoważona
-- Manewrowa
-- Siła ognia
-- Obrona głęboka
-
-#### Cecha narodowa
-Przykłady:
-- Korpus inżynieryjny
-- Zagłębia rudne
-- Pola naftowe
-- Kupcy i banki
-- Patriotyczna mobilizacja
-
-### 6. Zachowane poprawki ergonomii
-
-Nadal działa bezpieczniejsze sterowanie:
-
-1. klik prowincji tylko wybiera prowincję,
-2. klik jednostki tylko wybiera jednostkę,
-3. ruch lub atak wymaga przycisku **Wydaj rozkaz**,
-4. dopiero potem kliknięcie sąsiedniego pola wykonuje rozkaz.
-
-Nadal są też:
+- trzy mapy: **Pogranicze**, **Kontynent Valdoru**, **Wielka Wojna**,
+- do 8 krajów,
+- edytor kraju z flagą, ideologią, ustrojem, doktryną i cechą narodową,
+- łagodniejszy balans botów,
 - szybkie akcje nad mapą,
-- etykiety obrony pól,
-- paski HP,
-- zniszczenia prowincji,
-- naprawy szkód.
+- paski HP, etykiety obrony i zniszczenia prowincji.
 
 ## Uruchomienie lokalne
 
 ```bash
-cd warforge-mvp-balance-maps-country
+cd warforge-mvp-balance-maps-country-v2-visible
 python3 -m http.server 5173
 ```
 
@@ -137,12 +68,6 @@ Uruchom ponownie plik:
 supabase/schema.sql
 ```
 
-Jest to ważne, bo multiplayer dostał nowe pola kraju:
-
-- `government`,
-- `doctrine`,
-- `trait`.
-
 W Supabase nadal musi być włączone:
 
 ```text
@@ -158,4 +83,4 @@ Authentication → Anonymous sign-ins → Enable
 
 ## Znane ograniczenie MVP
 
-Host przeglądarkowy nadal jest autorytetem świata w multiplayerze. Do produkcyjnego multiplayera trzeba później dodać walidację ruchów po stronie backendu albo Supabase Edge Functions.
+Multiplayer nadal zapisuje pełny stan gry jako JSONB. Ta wersja zmniejsza ryzyko XSS i problemów synchronizacji, ale pełna odporność na cheaty wymaga następnego kroku architektonicznego: walidowanych komend gracza po stronie backendu albo Supabase Edge Functions.
