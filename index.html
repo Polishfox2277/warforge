@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Warforge Provinces — strategiczne MVP real-time</title>
   <meta name="description" content="Gra strategiczna real-time inspirowana grand strategy, działająca na GitHub Pages + Supabase." />
-  <link rel="stylesheet" href="./src/styles.css?v=organic-v3" />
+  <link rel="stylesheet" href="./src/styles.css?v=map-controls-fix-v2" />
   <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml" />
 </head>
 <body>
@@ -57,7 +57,7 @@
               <span><i class="legend-dot free"></i> puste</span>
               <span><i class="legend-dot defended"></i> bronione</span>
               <span><i class="legend-dot fortified"></i> fort/stolica</span>
-              <span><i class="legend-dot damaged"></i> zniszczenia</span><span>🖱️ przeciągnij mapę</span>
+              <span><i class="legend-dot damaged"></i> zniszczenia</span><span>🖱️ drag = przesuwanie</span><span>🖱️ kółko = zoom</span><span>← → ↑ ↓ / WASD = ruch mapy</span>
             </div>
           </div>
           <div id="mapRoot" class="map-root"></div>
@@ -130,7 +130,7 @@
       </div>
       <div id="setupCountrySummary" class="mini-country-card"></div>
       <button id="setupStartSoloBtn" class="btn accent wide" type="button">Rozpocznij kampanię solo</button>
-      <p class="muted">Sterowanie: przeciągnij mapę myszką, klik prowincji tylko wybiera prowincję. Ruch lub atak jednostką wymaga przycisku <strong>Wydaj rozkaz</strong>.</p>
+      <p class="muted">Sterowanie: klik prowincji wybiera prowincję, przeciągnięcie mapy przesuwa widok, kółko myszy robi zoom, a strzałki lub WASD przesuwają mapę. Ruch lub atak jednostką wymaga przycisku <strong>Wydaj rozkaz</strong>.</p>
     </form>
   </dialog>
 
@@ -240,6 +240,6 @@
     </form>
   </dialog>
 
-  <script type="module" src="./src/app.js?v=balance-v2"></script>
+  <script type="module" src="./src/app.js?v=player-actions-fix-v1"></script>
 </body>
 </html>

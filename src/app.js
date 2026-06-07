@@ -44,6 +44,12 @@ const DEFAULT_SUPABASE = {
   key: 'sb_publishable_8fKwAVcLPTj8TYWt_lHEpQ_Lp3KD1DI'
 };
 
+const MAP_PAN_THRESHOLD = 10;
+const MAP_KEYBOARD_PAN_STEP = 96;
+const MAP_ZOOM_MIN = 0.65;
+const MAP_ZOOM_MAX = 2.35;
+const MAP_ZOOM_STEP = 1.12;
+
 const ui = {
   app: document.querySelector('#app'),
   hub: document.querySelector('#hub'),
@@ -107,7 +113,8 @@ const app = {
   queuedRemoteRow: null,
   lastPersistAt: 0,
   lastLocalSaveAt: 0,
-  mapDrag: { active: false, moved: false, suppressClickUntil: 0, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0 },
+  mapDrag: { active: false, panning: false, moved: false, suppressClickUntil: 0, pointerId: null, startX: 0, startY: 0, scrollLeft: 0, scrollTop: 0 },
+  mapView: { scale: 1 },
   toastTimer: null
 };
 
@@ -189,36 +196,131 @@ function populateIdeologies() {
 }
 
 function initMapPan() {
+  ui.mapRoot.tabIndex = 0;
+  ui.mapRoot.setAttribute('aria-label', 'Mapa prowincji. Przeciągnij, aby przesunąć, użyj strzałek do ruchu i kółka myszy do zoomu.');
+
   ui.mapRoot.addEventListener('pointerdown', event => {
     if (event.button !== 0) return;
     app.mapDrag.active = true;
+    app.mapDrag.panning = false;
     app.mapDrag.moved = false;
+    app.mapDrag.pointerId = event.pointerId;
     app.mapDrag.startX = event.clientX;
     app.mapDrag.startY = event.clientY;
     app.mapDrag.scrollLeft = ui.mapRoot.scrollLeft;
     app.mapDrag.scrollTop = ui.mapRoot.scrollTop;
-    ui.mapRoot.classList.add('dragging');
-    ui.mapRoot.setPointerCapture?.(event.pointerId);
   });
+
   ui.mapRoot.addEventListener('pointermove', event => {
     if (!app.mapDrag.active) return;
+
     const dx = event.clientX - app.mapDrag.startX;
     const dy = event.clientY - app.mapDrag.startY;
-    if (Math.abs(dx) + Math.abs(dy) > 5) app.mapDrag.moved = true;
+
+    if (!app.mapDrag.panning) {
+      if (Math.hypot(dx, dy) < MAP_PAN_THRESHOLD) return;
+      app.mapDrag.panning = true;
+      app.mapDrag.moved = true;
+      ui.mapRoot.classList.add('dragging');
+      if (!ui.mapRoot.hasPointerCapture?.(event.pointerId)) {
+        ui.mapRoot.setPointerCapture?.(event.pointerId);
+      }
+    }
+
+    event.preventDefault();
     ui.mapRoot.scrollLeft = app.mapDrag.scrollLeft - dx;
     ui.mapRoot.scrollTop = app.mapDrag.scrollTop - dy;
   });
+
   const stopDrag = event => {
     if (!app.mapDrag.active) return;
+
+    const wasPanning = app.mapDrag.panning;
     app.mapDrag.active = false;
-    if (app.mapDrag.moved) app.mapDrag.suppressClickUntil = Date.now() + 120;
+    app.mapDrag.panning = false;
+    app.mapDrag.pointerId = null;
     ui.mapRoot.classList.remove('dragging');
-    ui.mapRoot.releasePointerCapture?.(event.pointerId);
-    window.setTimeout(() => { app.mapDrag.moved = false; }, 140);
+
+    if (event?.pointerId !== undefined && ui.mapRoot.hasPointerCapture?.(event.pointerId)) {
+      ui.mapRoot.releasePointerCapture?.(event.pointerId);
+    }
+
+    if (wasPanning) {
+      app.mapDrag.suppressClickUntil = Date.now() + 90;
+      window.setTimeout(() => { app.mapDrag.moved = false; }, 110);
+    } else {
+      app.mapDrag.moved = false;
+    }
   };
+
   ui.mapRoot.addEventListener('pointerup', stopDrag);
   ui.mapRoot.addEventListener('pointercancel', stopDrag);
   ui.mapRoot.addEventListener('mouseleave', stopDrag);
+
+  ui.mapRoot.addEventListener('wheel', event => {
+    if (app.view !== 'game') return;
+    event.preventDefault();
+
+    const direction = event.deltaY < 0 ? 1 : -1;
+    const factor = direction > 0 ? MAP_ZOOM_STEP : 1 / MAP_ZOOM_STEP;
+    const nextScale = clamp((app.mapView.scale || 1) * factor, MAP_ZOOM_MIN, MAP_ZOOM_MAX);
+    zoomMapAt(nextScale, event.clientX, event.clientY);
+  }, { passive: false });
+
+  document.addEventListener('keydown', event => {
+    if (app.view !== 'game' || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+    if (isInteractiveElement(event.target) || isDialogOpen()) return;
+
+    const step = MAP_KEYBOARD_PAN_STEP * (event.shiftKey ? 2 : 1);
+    let left = 0;
+    let top = 0;
+
+    if (event.key === 'ArrowLeft' || event.key.toLowerCase() === 'a') left = -step;
+    else if (event.key === 'ArrowRight' || event.key.toLowerCase() === 'd') left = step;
+    else if (event.key === 'ArrowUp' || event.key.toLowerCase() === 'w') top = -step;
+    else if (event.key === 'ArrowDown' || event.key.toLowerCase() === 's') top = step;
+    else return;
+
+    event.preventDefault();
+    ui.mapRoot.focus({ preventScroll: true });
+    ui.mapRoot.scrollBy({ left, top, behavior: 'auto' });
+  });
+}
+
+function isInteractiveElement(target) {
+  return Boolean(target?.closest?.('input, textarea, select, button, dialog'));
+}
+
+function isDialogOpen() {
+  return Boolean(document.querySelector('dialog[open]'));
+}
+
+function zoomMapAt(nextScale, clientX, clientY) {
+  const currentScale = app.mapView.scale || 1;
+  if (Math.abs(nextScale - currentScale) < 0.001) return;
+
+  const rect = ui.mapRoot.getBoundingClientRect();
+  const focalX = clientX - rect.left;
+  const focalY = clientY - rect.top;
+  const contentX = ui.mapRoot.scrollLeft + focalX;
+  const contentY = ui.mapRoot.scrollTop + focalY;
+  const ratio = nextScale / currentScale;
+
+  app.mapView.scale = nextScale;
+  applyMapScaleVariables();
+
+  ui.mapRoot.scrollLeft = contentX * ratio - focalX;
+  ui.mapRoot.scrollTop = contentY * ratio - focalY;
+}
+
+function applyMapScaleVariables(mapMeta = app.state.mapMeta ?? { width: 1000, height: 610 }) {
+  const scale = app.mapView.scale || 1;
+  ui.mapRoot.style.setProperty('--map-width', `${Math.round(mapMeta.width * scale)}px`);
+  ui.mapRoot.style.setProperty('--map-height', `${Math.round(mapMeta.height * scale)}px`);
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
 
@@ -262,6 +364,7 @@ function startSoloGame(setup = setupConfigFromDialog()) {
 function setState(nextState, mode = app.mode) {
   app.state = migrateState(nextState);
   app.mode = mode;
+  if (mode === 'local') syncLocalHumanId();
   app.selectedProvinceId = null;
   app.selectedUnitId = null;
   app.orderMode = false;
@@ -390,8 +493,7 @@ function renderMap() {
     </g>`;
   }).join('');
 
-  ui.mapRoot.style.setProperty('--map-width', `${mapMeta.width}px`);
-  ui.mapRoot.style.setProperty('--map-height', `${mapMeta.height}px`);
+  applyMapScaleVariables(mapMeta);
   ui.mapRoot.innerHTML = `<svg viewBox="0 0 ${mapMeta.width} ${mapMeta.height}" role="img" aria-label="Mapa prowincji Warforge">
     <defs>
       <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="6" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
@@ -727,8 +829,46 @@ function userCanAct() {
 }
 
 function controlledPlayer() {
-  if (app.mode === 'local') return getPlayer(app.state, app.localHumanId);
-  return getControlledPlayer(app.state, app.supabaseUser?.id);
+  if (app.mode === 'local') return resolveLocalControlledPlayer();
+
+  const userId = app.supabaseUser?.id;
+  const controlled = getControlledPlayer(app.state, userId);
+  if (controlled) return controlled;
+
+  // Awaryjna ścieżka dla starszych pokoi/zapisów, w których host nie miał
+  // jeszcze wpisanego controller w players[0]. Bez tego UI przechodziło
+  // w tryb obserwatora: boty działały, ale gracz nie miał aktywnych akcji.
+  if (userId && app.state.hostUserId === userId) {
+    const hostPlayer = app.state.players.find(p => p.controller === userId && !p.eliminated)
+      ?? app.state.players.find(p => p.type === 'human' && !p.eliminated)
+      ?? null;
+    return hostPlayer;
+  }
+
+  return null;
+}
+
+function resolveLocalControlledPlayer() {
+  const exact = getPlayer(app.state, app.localHumanId);
+  if (exact && exact.type !== 'open' && !exact.eliminated) return exact;
+
+  const human = app.state.players.find(p => p.type === 'human' && !p.eliminated);
+  if (human) {
+    app.localHumanId = human.id;
+    return human;
+  }
+
+  const playable = app.state.players.find(p => p.type !== 'bot' && p.type !== 'open' && !p.eliminated);
+  if (playable) {
+    app.localHumanId = playable.id;
+    return playable;
+  }
+
+  return null;
+}
+
+function syncLocalHumanId() {
+  resolveLocalControlledPlayer();
 }
 
 function isHostAuthority() {
